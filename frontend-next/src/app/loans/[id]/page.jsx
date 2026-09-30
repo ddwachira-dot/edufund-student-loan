@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import api from '@/api/client';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import { docUrl } from '@/utils/fileUrl';
 
 function money(n) {
   return `$${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
@@ -352,7 +353,7 @@ function LoanDetailContent() {
             {documents.length === 0 && <p className="muted" style={{ fontSize: 13 }}>No documents uploaded yet.</p>}
             {documents.map((d) => (
               <div key={d.id} className="space-between" style={{ padding: '8px 0', borderBottom: '1px solid var(--line)' }}>
-                <a href={`/api/docs/${d.stored_name}?token=${typeof window !== 'undefined' ? localStorage.getItem('sl_token') || '' : ''}`} target="_blank" rel="noreferrer">
+                <a href={docUrl(d.stored_name)} target="_blank" rel="noreferrer">
                   {d.file_name}
                 </a>
                 <div className="flex">

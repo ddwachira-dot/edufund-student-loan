@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import { avatarUrl } from '@/utils/fileUrl';
 
 const MenuIcon = () => (
   <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -116,7 +117,7 @@ export default function Navbar() {
           <div className="user-chip">
             <Link href="/profile" className="avatar-link">
               {user.profile_pic ? (
-                <img className="avatar" src={`/uploads/${user.profile_pic}`} alt="" />
+                <img className="avatar" src={avatarUrl(user.profile_pic)} alt="" />
               ) : (
                 <span className="avatar">{user.name?.charAt(0)?.toUpperCase()}</span>
               )}
@@ -148,7 +149,7 @@ export default function Navbar() {
           <>
             <div className="user-chip" style={{ padding: '16px 8px', borderBottom: '1px solid var(--glass-line)' }}>
               {user.profile_pic ? (
-                <img className="avatar" src={`/uploads/${user.profile_pic}`} alt="" />
+                <img className="avatar" src={avatarUrl(user.profile_pic)} alt="" />
               ) : (
                 <span className="avatar">{user.name?.charAt(0)?.toUpperCase()}</span>
               )}

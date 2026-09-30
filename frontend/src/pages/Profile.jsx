@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { avatarUrl } from '../utils/fileUrl';
 
 const DOC_LABEL = { drivers_license: 'US driver’s license', passport: 'Passport' };
 
@@ -75,7 +76,7 @@ export default function Profile() {
     }
   };
 
-  const avatarSrc = preview || (user?.profile_pic ? `/uploads/${user.profile_pic}` : null);
+  const avatarSrc = preview || avatarUrl(user?.profile_pic);
 
   return (
     <div className="container">

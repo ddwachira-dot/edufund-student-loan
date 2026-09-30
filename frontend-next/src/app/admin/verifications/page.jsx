@@ -3,13 +3,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import api from '@/api/client';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import { docUrl } from '@/utils/fileUrl';
 
 const DOC_LABEL = { drivers_license: 'US driver’s license', passport: 'Passport' };
 const STATUS_FILTERS = ['pending', 'approved', 'rejected', 'all'];
-
-function docUrl(v) {
-  return `/uploads/${v.stored_name}`;
-}
 
 export default function AdminVerifications() {
   return (

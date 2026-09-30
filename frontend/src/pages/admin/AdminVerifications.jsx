@@ -1,12 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import api from '../../api/client';
+import { docUrl } from '../../utils/fileUrl';
 
 const DOC_LABEL = { drivers_license: 'US driver’s license', passport: 'Passport' };
 const STATUS_FILTERS = ['pending', 'approved', 'rejected', 'all'];
-
-function docUrl(v) {
-  return `/uploads/${v.stored_name}`;
-}
 
 export default function AdminVerifications() {
   const [filter, setFilter] = useState('pending');
@@ -151,12 +148,12 @@ export default function AdminVerifications() {
               {selected.stored_name ? (
                 /^image\//.test(selected.mime_type || '') ? (
                   <img
-                    src={docUrl(selected)}
+                    src={docUrl(selected.stored_name)}
                     alt={selected.file_name}
                     style={{ maxWidth: '100%', maxHeight: 280, borderRadius: 8, border: '1px solid var(--line)' }}
                   />
                 ) : (
-                  <a className="btn outline sm" href={docUrl(selected)} target="_blank" rel="noreferrer">
+                  <a className="btn outline sm" href={docUrl(selected.stored_name)} target="_blank" rel="noreferrer">
                     Open document
                   </a>
                 )

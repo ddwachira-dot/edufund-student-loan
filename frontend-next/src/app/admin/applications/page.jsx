@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import api from '@/api/client';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import WelcomeGate from '@/components/WelcomeGate';
+import { docUrl } from '@/utils/fileUrl';
 
 function money(n) {
   return `$${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
@@ -190,7 +191,7 @@ function AdminApplicationsContent() {
                 <ul className="mb">
                   {selected.documents.map((d) => (
                     <li key={d.id}>
-                      <a href={`/api/docs/${d.stored_name}?token=${typeof window !== 'undefined' ? localStorage.getItem('sl_token') || '' : ''}`} target="_blank" rel="noreferrer">{d.file_name}</a>
+                      <a href={docUrl(d.stored_name)} target="_blank" rel="noreferrer">{d.file_name}</a>
                     </li>
                   ))}
                 </ul>

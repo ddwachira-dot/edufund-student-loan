@@ -51,7 +51,7 @@ student-loan/
 │   ├── uploads/                # Multer file storage (git-ignored)
 │   └── src/
 │       ├── index.js            # server bootstrap
-│       ├── app.js              # express wiring, static /uploads, error handler
+│       ├── app.js              # express wiring, guarded /api/avatars + /api/docs, error handler
 │       ├── config/db.js        # pg Pool
 │       ├── middleware/
 │       │   ├── auth.js         # JWT sign/verify + admin guard

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import api from '../../api/client';
+import { docUrl } from '../../utils/fileUrl';
 
 function money(n) {
   return `$${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
@@ -176,7 +177,7 @@ export default function AdminApplications() {
                 <ul className="mb">
                   {selected.documents.map((d) => (
                     <li key={d.id}>
-                      <a href={`/api/docs/${d.stored_name}?token=${localStorage.getItem('sl_token') || ''}`} target="_blank" rel="noreferrer">{d.file_name}</a>
+                      <a href={docUrl(d.stored_name)} target="_blank" rel="noreferrer">{d.file_name}</a>
                     </li>
                   ))}
                 </ul>
