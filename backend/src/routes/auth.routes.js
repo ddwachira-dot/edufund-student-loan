@@ -12,6 +12,15 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const USER_FIELDS = 'id, email, name, role, phone, address, profile_pic, accepted_terms_at, welcome_seen_at, created_at';
 
+// Returns the active ban row for an email, or null.
+async function findActiveBan(email) {
+  const { rows } = await pool.query(
+    'SELECT email, reason, banned_at FROM banned_emails WHERE email = $1 AND released_at IS NULL',
+    [String(email).toLowerCase()]
+  );
+  return rows[0] || null;
+}
+
 // POST /api/auth/register  -> creates a student account
 router.post('/register', async (req, res, next) => {
   try {
@@ -27,6 +36,9 @@ router.post('/register', async (req, res, next) => {
     }
     if (String(password).length < 6) {
       return res.status(400).json({ message: 'Password must be at least 6 characters' });
+    }
+    if (await findActiveBan(email)) {
+      return res.status(403).json({ message: 'This email address has been blocked from registering' });
     }
     const password_hash = await bcrypt.hash(String(password), 10);
     const { rows } = await pool.query(
@@ -61,6 +73,19 @@ router.post('/login', async (req, res, next) => {
     const user = rows[0];
     if (!user || !(await bcrypt.compare(String(password), user.password_hash))) {
       return res.status(401).json({ message: 'Invalid email or password' });
+    }
+    // Checked only after the password matches, so a wrong-password attempt cannot be
+    // used to discover which emails are banned.
+    const ban = await findActiveBan(email);
+    if (ban) {
+      return res.status(403).json({
+        message: `This account has been closed. Reason: ${ban.reason || 'no reason recorded'}`,
+      });
+    }
+    if (user.closed_at) {
+      return res.status(403).json({
+        message: `This account has been closed. Reason: ${user.closed_reason || 'no reason recorded'}`,
+      });
     }
     const safe = {
       id: user.id, email: user.email, name: user.name, role: user.role,

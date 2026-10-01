@@ -5,7 +5,7 @@ A runnable student loan management system:
 - **Frontend:** React 18 + Vite, React Router, Axios, Recharts
 - **Backend:** Node.js + Express, JWT auth, Multer uploads
 - **Database:** PostgreSQL (raw SQL schema, DB starts empty — no seed data)
-- **Payments:** recorded directly in PostgreSQL (no external processor)
+- **Payments:** Paystack checkout (application fee + EMI instalments)
 
 ## Features
 
@@ -33,6 +33,45 @@ Create your first admin with the CLI (or register as a student from the app):
 
 ```bash
 npm run db:create-admin -- --email you@example.com --password YourPass --name "Your Name"
+```
+
+Re-running that command on an existing email resets its password and promotes it to admin.
+
+## Migrations
+
+`db/schema.sql` is the source of truth for a fresh database. To add the later columns and
+tables to a database you already have, use the additive migration — it never drops anything:
+
+```bash
+npm run db:migrate
+```
+
+## Automated decision runner (simulation)
+
+`backend/src/services/simulation.js` optionally clears the review queues on a timer so the
+admin dashboard keeps moving without a human clicking through it. Each cycle:
+
+- approves up to **7** pending identity verifications
+- rejects up to **3** pending applications, then **closes that borrower's account and bans
+  their email** so they can no longer log in or re-register
+
+**It is off unless `SIMULATION_ENABLED=true`.** It approves ID documents and bans real
+borrowers with no human in the loop, so never point it at a database with real applicants.
+It only acts on rows that already exist — it never manufactures users or applications.
+
+```bash
+SIMULATION_ENABLED=true \
+SIMULATION_INTERVAL_MS=300000 \
+SIMULATION_APPROVE_VERIFICATIONS=7 \
+SIMULATION_REJECT_APPLICATIONS=3 \
+npm start
+```
+
+Every run is logged to stdout. Bans are reversible:
+
+```bash
+curl -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:5000/api/admin/banned/<email>/release
 ```
 
 ## Folder structure
@@ -160,48 +199,68 @@ Students register from the app at `/register`.
 
 | Method | Endpoint                              | Auth          | Description                          |
 |--------|---------------------------------------|---------------|--------------------------------------|
-| POST   | /api/auth/register                    | —             | Create student account               |
-| POST   | /api/auth/login                       | —             | Get JWT                              |
+| POST   | /api/auth/register                    | —             | Create student account (blocked if the email is banned) |
+| POST   | /api/auth/login                       | —             | Get JWT (403 if the account is closed/banned) |
 | GET    | /api/auth/me                          | Bearer        | Current user                         |
+| PATCH  | /api/auth/profile                     | Bearer        | Update name / phone / address        |
+| POST   | /api/auth/profile-picture             | Bearer        | Upload profile photo (multipart `file`, 5 MB image) |
 | POST   | /api/auth/welcome-seen               | Bearer        | Mark one-time welcome page as seen   |
-| POST   | /api/loans                            | Student       | Apply + charge $10 fee               |
+| POST   | /api/loans                            | Student       | Apply (requires an approved identity document) |
 | GET    | /api/loans                            | Student       | My applications                      |
 | GET    | /api/loans/:id                        | Student/Admin | Detail + EMIs + docs + payments      |
 | POST   | /api/loans/:id/documents              | Student/Admin | Upload document (multipart `file`)   |
 | POST   | /api/loans/:id/disbursement           | Student       | Choose payout method (bank, airtm, paypal) |
 | DELETE | /api/loans/documents/:docId           | Student/Admin | Remove document                      |
-| GET    | /api/docs/:stored_name?token=…        | Bearer/Qtkn   | Download stored document             |
-| GET    | /api/rates                            | —             | Current active interest rate (EMI estimator) |
-| GET    | /api/verify/identity                 | Student       | Current identity verification (or null)      |
+| GET    | /api/docs/:stored_name?token=…        | Owner/Admin   | Download a loan or identity document |
+| GET    | /api/avatars/:stored_name?token=…     | Owner         | Download own profile picture (image types only) |
+| GET    | /api/rates                            | —             | Fixed 8.5% p.a. rate + $3,000 cap (EMI estimator) |
+| GET    | /api/verify/identity                 | Student       | Current identity verification + billing (or null) |
 | POST   | /api/verify/identity                 | Student       | Upload driver's license or passport (multipart `file` + `doc_type`) → pending |
 | DELETE | /api/verify/identity                 | Student       | Remove verification                         |
-| GET    | /api/admin/verifications?status=     | Admin         | List identity documents                     |
-| PATCH  | /api/admin/verifications/:id/approve | Admin         | Approve document (unlocks loan applications) |
-| PATCH  | /api/admin/verifications/:id/reject  | Admin         | Reject document with optional reason        |
+| PUT    | /api/verify/billing                  | Student       | Save payout method + billing address           |
 | GET    | /api/payments                         | Student       | My payments                          |
-| POST   | /api/payments/emi                     | Student       | Pay an EMI instalment                |
+| POST   | /api/payments/initialize              | Student       | Open a Paystack checkout (`purpose`: `emi` \| `application_fee`) |
+| POST   | /api/payments/confirm                 | Student       | Verify the Paystack payment and apply it      |
 | GET    | /api/admin/applications?status=       | Admin         | List applications                    |
 | GET    | /api/admin/applications/:id           | Admin         | Full review detail                   |
 | PATCH  | /api/admin/applications/:id/approve   | Admin         | Approve + generate EMI schedule      |
-| PATCH  | /api/admin/applications/:id/reject    | Admin         | Reject                               |
+| PATCH  | /api/admin/applications/:id/reject    | Admin         | Reject (`{ reason, close_account }`) |
 | GET    | /api/admin/stats                      | Admin         | Dashboard numbers + chart series     |
-| GET    | /api/admin/rates                      | Admin         | List rates                           |
-| POST   | /api/admin/rates                      | Admin         | Create rate                          |
-| PATCH  | /api/admin/rates/:id                  | Admin         | Update / toggle rate                 |
+| GET    | /api/admin/verifications?status=     | Admin         | List identity documents                     |
+| PATCH  | /api/admin/verifications/:id/approve | Admin         | Approve document (unlocks loan applications) |
+| PATCH  | /api/admin/verifications/:id/reject  | Admin         | Reject document with optional reason        |
+| GET    | /api/admin/rates                      | Admin         | Read-only: the fixed 8.5% p.a. rate   |
+| GET    | /api/admin/banned                     | Admin         | List active email bans               |
+| POST   | /api/admin/banned/:email/release      | Admin         | Lift a ban and reopen the account    |
 
-Approve body: `{ "rate_id": 1 }` — the loan's `interest_rate` is snapshotted and the EMI schedule is generated with the reducing-balance formula `EMI = P·r(1+r)ⁿ/((1+r)ⁿ−1)`.
+Approve takes no body: the rate is fixed at 8.5% p.a. for every loan, so it is snapshotted
+onto the application and the schedule is generated with the reducing-balance formula
+`EMI = P·r(1+r)ⁿ/((1+r)ⁿ−1)`.
 
-Pay EMI body: `{ "application_id": 1, "amount": 320.50 }` — applied to the earliest unpaid instalment; loan flips to `closed` when fully repaid.
+Paying: `POST /api/payments/initialize` with `{ application_id, purpose, amount? }` returns a
+Paystack `authorization_url`; the browser is redirected there and the app then calls
+`POST /api/payments/confirm` with the reference. The amount actually applied is read back from
+Paystack, applied to the earliest unpaid instalment; the loan flips to `closed` when fully repaid.
 
-Disbursement body: `{ "method": "bank" | "airtm" | "paypal", "account": "<details>" }` — only available after approval; the method and (masked) account are stored on the loan at `disbursed_at`.
+Disbursement body: `{ "method": "bank" | "airtm" | "paypal", "account": "<details>" }` — only available after approval; the method and account are stored on the loan at `disbursed_at`.
 
 Verification: upload multipart `file` + `doc_type` (`drivers_license` for US residents, `passport` for international students). Uploads land in `pending`; an admin approves/rejects them on `/api/admin/verifications`. Re-uploading replaces the document and resets to `pending`; `POST /api/loans` returns `403` until the document is `approved`.
 
 ## Notes
 
 - Passwords are hashed with bcryptjs. JWT expires in 7 days.
-- Payments (the $10 application fee and EMI instalments) are written straight to the `payments` table with a generated `PAY_...` reference — no external processor is involved.
-- `npm run db:reset` is **destructive** — it drops and recreates the `public` schema. Never run it against production data.
+- Uploads are **never** served as a static directory. Every read goes through
+  `/api/docs/:stored_name` or `/api/avatars/:stored_name`, which resolve the filename against
+  the database and then check ownership. Both accept `?token=` because `<img>`/`<iframe>`
+  cannot send an `Authorization` header.
+- A closed account or banned email is rejected on **every** authenticated request, not only at
+  login, so a token minted before the closure stops working immediately.
+- Payments (the $10 application fee and EMI instalments) go through Paystack and are recorded in
+  the `payments` table with the `PS_...` reference Paystack returns. There is no webhook — the
+  browser returning from checkout is what confirms a payment, so an abandoned checkout leaves the
+  application unpaid.
+- `npm run db:reset` is **destructive** — it drops and recreates the `public` schema. Never run it
+  against production data. Use `npm run db:migrate` for additive changes.
 - Uploaded files land in `backend/uploads/` (git-ignored). Change the directory in `src/middleware/upload.js` if desired.
 
 ## Production-ish tips

@@ -7,6 +7,7 @@
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
     "db:reset": "node db/reset.js",
+    "db:migrate": "node db/migrate.js",
     "db:create-admin": "node db/create-admin.js"
   },
   "dependencies": {

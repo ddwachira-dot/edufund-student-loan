@@ -16,6 +16,8 @@ CREATE TABLE users (
   profile_pic   TEXT,
   accepted_terms_at TIMESTAMPTZ,
   welcome_seen_at   TIMESTAMPTZ,
+  closed_at         TIMESTAMPTZ,
+  closed_reason     TEXT,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -143,6 +145,18 @@ CREATE TABLE billing_details (
   paypal_email   TEXT,
   created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Emails blocked from registering or logging in. Login checks this before
+-- issuing a token, so a ban holds even if the account row is deleted.
+CREATE TABLE banned_emails (
+  email          VARCHAR(255) PRIMARY KEY,
+  reason         TEXT,
+  user_id        INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  application_id INTEGER REFERENCES loan_applications(id) ON DELETE SET NULL,
+  banned_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  released_at    TIMESTAMPTZ,
+  released_by    INTEGER REFERENCES users(id)
 );
 
 -- Convenience indexes

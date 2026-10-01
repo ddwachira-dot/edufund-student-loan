@@ -13,9 +13,14 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err.response && err.response.status === 401) {
+    const status = err.response?.status;
+    // A closed/banned account is rejected on every request, so drop the stale
+    // session instead of leaving the user on a page that cannot load.
+    const closed = status === 403 && /^this account has been closed/i.test(err.response?.data?.message || '');
+    if (status === 401 || closed) {
       localStorage.removeItem('sl_token');
       localStorage.removeItem('sl_user');
+      sessionStorage.removeItem('sl_welcome_pending');
       if (!window.location.pathname.startsWith('/login')) {
         window.location.href = '/login';
       }

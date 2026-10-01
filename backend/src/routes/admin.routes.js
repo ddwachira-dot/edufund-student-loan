@@ -1,7 +1,12 @@
 const express = require('express');
 const pool = require('../config/db');
 const { authenticate, requireAdmin } = require('../middleware/auth');
-const { buildSchedule } = require('../utils/emi');
+const {
+  approveApplication,
+  rejectApplication,
+  closeAccountAndBan,
+  withTransaction,
+} = require('../services/loanActions');
 const { INTEREST_RATE } = require('../config/loan');
 
 const router = express.Router();
@@ -53,69 +58,48 @@ router.get('/applications/:id', async (req, res, next) => {
 // PATCH /api/admin/applications/:id/approve
 // The interest rate is fixed at 8.5% p.a. for every loan, so no rate selection is required.
 router.patch('/applications/:id/approve', async (req, res, next) => {
-  const client = await pool.connect();
   try {
     const loan = (await pool.query(
       'SELECT * FROM loan_applications WHERE id = $1', [req.params.id]
     )).rows[0];
     if (!loan) return res.status(404).json({ message: 'Application not found' });
-    if (loan.status !== 'pending') {
-      return res.status(400).json({ message: `Cannot approve an application with status '${loan.status}'` });
-    }
 
-    const { emi, rows } = buildSchedule(
-      Number(loan.amount),
-      Number(loan.duration_months),
-      INTEREST_RATE
+    const result = await withTransaction((client) =>
+      approveApplication(client, loan, req.user.id, req.body?.note)
     );
-
-    await client.query('BEGIN');
-    await client.query(
-      `UPDATE loan_applications
-          SET status = 'active', interest_rate = $1, approved_by = $2, approved_at = NOW(),
-              decision_note = $4
-        WHERE id = $3`,
-      [INTEREST_RATE, req.user.id, loan.id, req.body?.note || `Approved at ${INTEREST_RATE}% p.a.`]
-    );
-    for (const r of rows) {
-      await client.query(
-        `INSERT INTO emi_schedules
-           (application_id, installment_no, due_date, principal, interest, amount)
-         VALUES ($1,$2,$3,$4,$5,$6)`,
-        [loan.id, r.installment_no, r.due_date, r.principal, r.interest, r.amount]
-      );
-    }
-    await client.query('COMMIT');
-
-    return res.json({
-      message: 'Application approved and EMI schedule generated',
-      emi,
-      rate: INTEREST_RATE,
-      schedule_rows: rows.length,
-    });
+    return res.json({ message: 'Application approved and EMI schedule generated', ...result });
   } catch (err) {
-    await client.query('ROLLBACK').catch(() => {});
     return next(err);
-  } finally {
-    client.release();
   }
 });
 
-// PATCH /api/admin/applications/:id/reject  body: { reason }
+// PATCH /api/admin/applications/:id/reject  body: { reason, close_account? }
+// close_account=true also closes the owner's account and bans their email.
 router.patch('/applications/:id/reject', async (req, res, next) => {
   try {
-    const { reason } = req.body || {};
-    const { rows } = await pool.query(
-      `UPDATE loan_applications
-          SET status = 'rejected', approved_by = $1, approved_at = NOW(), decision_note = $3
-        WHERE id = $2 AND status = 'pending'
-        RETURNING *`,
-      [req.user.id, req.params.id, reason || null]
-    );
-    if (!rows[0]) {
-      return res.status(400).json({ message: 'Application not found or not pending' });
-    }
-    return res.json({ message: 'Application rejected', reason: reason || null });
+    const { reason, close_account } = req.body || {};
+    const loan = (await pool.query(
+      'SELECT la.*, u.email FROM loan_applications la JOIN users u ON u.id = la.user_id WHERE la.id = $1',
+      [req.params.id]
+    )).rows[0];
+    if (!loan) return res.status(404).json({ message: 'Application not found' });
+
+    await withTransaction(async (client) => {
+      await rejectApplication(client, loan, req.user.id, reason || null);
+      if (close_account) {
+        await closeAccountAndBan(
+          client,
+          { id: loan.user_id, email: loan.email },
+          reason || 'Application rejected',
+          loan.id
+        );
+      }
+    });
+    return res.json({
+      message: 'Application rejected',
+      reason: reason || null,
+      account_closed: Boolean(close_account),
+    });
   } catch (err) {
     return next(err);
   }
@@ -240,6 +224,46 @@ router.patch('/verifications/:id/reject', async (req, res, next) => {
     );
     if (!rows[0]) return res.status(404).json({ message: 'Verification not found' });
     return res.json({ verification: rows[0] });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+// ----------------------------- Banned emails -----------------------------
+
+// GET /api/admin/banned -> active bans (pass ?include_released=true for history)
+router.get('/banned', async (req, res, next) => {
+  try {
+    const includeReleased = req.query.include_released === 'true';
+    const { rows } = await pool.query(
+      `SELECT b.*, u.name AS user_name
+         FROM banned_emails b
+         LEFT JOIN users u ON u.id = b.user_id
+        ${includeReleased ? '' : 'WHERE b.released_at IS NULL'}
+        ORDER BY b.banned_at DESC`
+    );
+    return res.json({ banned: rows });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+// POST /api/admin/banned/:email/release -> lift the ban and reopen the account
+router.post('/banned/:email/release', async (req, res, next) => {
+  try {
+    const email = String(req.params.email).toLowerCase();
+    await withTransaction(async (client) => {
+      await client.query(
+        `UPDATE banned_emails SET released_at = NOW(), released_by = $2
+          WHERE email = $1 AND released_at IS NULL`,
+        [email, req.user.id]
+      );
+      await client.query(
+        'UPDATE users SET closed_at = NULL, closed_reason = NULL WHERE email = $1',
+        [email]
+      );
+    });
+    return res.json({ message: `Ban released for ${email}` });
   } catch (err) {
     return next(err);
   }
