@@ -34,8 +34,8 @@ export default function MyLoans() {
         {loans.map((l) => {
           const remaining = Math.max(0, l.total_emis - l.paid_emis);
           return (
-            <Link key={l.id} to={`/loans/${l.id}`} style={{ color: 'inherit', textDecoration: 'none' }}>
-              <div className="stat" style={{ height: '100%' }}>
+            <div key={l.id} className="stat" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+              <Link to={`/loans/${l.id}`} style={{ color: 'inherit', textDecoration: 'none', flex: 1 }}>
                 <div className="space-between">
                   <span className={`badge ${l.status}`}>{l.status}</span>
                   <span className="muted" style={{ fontSize: 12 }}>
@@ -52,13 +52,22 @@ export default function MyLoans() {
                       {remaining > 0 ? `${remaining} remaining` : 'all cleared'}
                     </>
                   )}
-                  {l.status === 'pending' && 'Awaiting admin review'}
-                  {l.status === 'rejected' && 'Application was declined'}
+                  {l.status === 'pending' && (l.can_pay_fee ? 'Awaiting $10 application fee' : 'Awaiting admin review')}
+                  {l.status === 'rejected' && (l.can_pay_fee ? 'Fee unpaid — pay to submit for review' : 'Application was declined')}
                   {l.status === 'approved' && `Approved at ${l.interest_rate ?? '—'}%`}
                   {l.status === 'closed' && 'Fully repaid'}
                 </div>
-              </div>
-            </Link>
+              </Link>
+              {l.can_pay_fee && (
+                <Link
+                  to={`/checkout?application_id=${l.id}&purpose=application_fee`}
+                  className="btn success"
+                  style={{ marginTop: 12, textAlign: 'center' }}
+                >
+                  Pay $10 application fee
+                </Link>
+              )}
+            </div>
           );
         })}
       </div>

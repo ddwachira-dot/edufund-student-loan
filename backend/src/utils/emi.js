@@ -12,10 +12,6 @@ function isoDay(d) {
   return `${y}-${m}-${day}`;
 }
 
-function firstOfMonth(d) {
-  return new Date(d.getFullYear(), d.getMonth(), 1);
-}
-
 function nextMonth(d) {
   return new Date(d.getFullYear(), d.getMonth() + 1, 1);
 }
@@ -24,7 +20,8 @@ function nextMonth(d) {
  * @param {number} amount           principal
  * @param {number} months           tenure
  * @param {number} annualRatePct    e.g. 8.5
- * @param {Date}   start            first due date (defaults to today)
+ * @param {Date}   start            approval date (defaults to today); first instalment is
+ *                                  due on the 1st of the following month so it is never past
  * @returns {{emi:number, rows:Array<object>}}
  */
 function buildSchedule(amount, months, annualRatePct, start = new Date()) {
@@ -36,7 +33,9 @@ function buildSchedule(amount, months, annualRatePct, start = new Date()) {
 
   let balance = amount;
   const rows = [];
-  let due = firstOfMonth(start);
+  // First instalment is due on the 1st of the month AFTER approval, so a mid-month
+  // approval never produces an already-overdue (past) due date.
+  let due = nextMonth(start);
 
   for (let i = 1; i <= months; i += 1) {
     const interest = balance * r;

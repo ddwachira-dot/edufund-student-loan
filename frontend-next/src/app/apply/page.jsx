@@ -7,6 +7,7 @@ import api from '@/api/client';
 import ProtectedRoute from '@/components/ProtectedRoute';
 
 const FEE = 10;
+const MIN_AMOUNT = 500;
 const MAX_AMOUNT = 3000;
 
 function estimateEmi(amount, months, annualRatePct) {
@@ -105,19 +106,43 @@ function ApplyLoanContent() {
   const setQ = (k) => (e) =>
     setForm((f) => ({ ...f, questionnaire: { ...f.questionnaire, [k]: e.target.value } }));
 
+  const requiredAnswers = [
+    'employment_status',
+    'co_signer',
+    'credit_history',
+    'scholarship',
+    ...(answers['co_signer'] === 'yes' ? ['co_signer_name', 'co_signer_phone', 'co_signer_email'] : []),
+  ];
+  const cosignerValid =
+    answers['co_signer'] !== 'yes' ||
+    ((answers.co_signer_phone || '').replace(/\D/g, '').length >= 7 &&
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(answers.co_signer_email || ''));
+
   const canNext =
     step === 1
-      ? form.university && form.course && Number(form.amount) > 0 && Number(form.amount) <= MAX_AMOUNT && form.duration_months
-      : Object.keys(answers).length === 4 && Object.values(answers).every(Boolean);
+      ? form.university && form.course && Number(form.amount) >= MIN_AMOUNT && Number(form.amount) <= MAX_AMOUNT && form.duration_months
+      : requiredAnswers.every((k) => (answers[k] || '').trim()) && cosignerValid;
 
-  const pickAnswer = (q) => (e) =>
-    setAnswers((a) => ({ ...a, [q]: e.target.value }));
+  const pickAnswer = (q) => (e) => {
+    const value = e.target.value;
+    setAnswers((a) => {
+      const next = { ...a, [q]: value };
+      if (q === 'co_signer' && value !== 'yes') {
+        delete next.co_signer_name;
+        delete next.co_signer_phone;
+        delete next.co_signer_email;
+      }
+      return next;
+    });
+  };
 
   const submit = async () => {
     setError('');
     setBusy(true);
     try {
-      const labels = Object.entries(answers).map(([q, v]) => ({ question: q, answer: v }));
+      const labels = Object.entries(answers)
+        .filter(([q, v]) => v && (!q.startsWith('co_signer_') || answers['co_signer'] === 'yes'))
+        .map(([q, v]) => ({ question: q, answer: v }));
       const { data } = await api.post('/loans', {
         university: form.university,
         course: form.course,
@@ -128,12 +153,7 @@ function ApplyLoanContent() {
         questionnaire: { ...form.questionnaire, interview_answers: labels },
       });
       if (data.loan) {
-        const init = await api.post('/payments/initialize', {
-          application_id: data.loan.id,
-          purpose: 'application_fee',
-        });
-        setSuccess('Application created. Complete the $10 fee on Paystack to submit it.');
-        window.location.href = init.data.authorization_url;
+        router.push(`/checkout?application_id=${data.loan.id}&purpose=application_fee`);
       }
     } catch (err) {
       setError(err.response?.data?.message || 'Something went wrong submitting the application');
@@ -239,8 +259,8 @@ function ApplyLoanContent() {
             <div className="signature-row">
               <div className="field">
                 <label>Loan amount (USD) *</label>
-                <input className="input" type="number" min="1" max={MAX_AMOUNT} step="50" value={form.amount} onChange={set('amount')} placeholder="3000" />
-                <span className="hint">Maximum loan amount is $3,000.</span>
+                <input className="input" type="number" min={MIN_AMOUNT} max={MAX_AMOUNT} step="50" value={form.amount} onChange={set('amount')} placeholder="500" />
+                <span className="hint">Loans run from $500 to $3,000.</span>
               </div>
               <div className="field">
                 <label>Repayment term (months) *</label>
@@ -311,6 +331,25 @@ function ApplyLoanContent() {
                 <option value="no">No</option>
               </select>
             </div>
+            {answers['co_signer'] === 'yes' && (
+              <>
+                <div className="signature-row">
+                  <div className="field">
+                    <label>Co-signer full name *</label>
+                    <input className="input" value={answers['co_signer_name'] || ''} onChange={pickAnswer('co_signer_name')} placeholder="Jane Doe" />
+                  </div>
+                  <div className="field">
+                    <label>Co-signer phone number *</label>
+                    <input className="input" type="tel" value={answers['co_signer_phone'] || ''} onChange={pickAnswer('co_signer_phone')} placeholder="+1 555 123 4567" />
+                  </div>
+                </div>
+                <div className="field">
+                  <label>Co-signer email *</label>
+                  <input className="input" type="email" value={answers['co_signer_email'] || ''} onChange={pickAnswer('co_signer_email')} placeholder="jane.doe@example.com" />
+                  <span className="hint">We may contact your co-signer to verify the application.</span>
+                </div>
+              </>
+            )}
             <div className="field">
               <label>3. How would you describe your credit history?</label>
               <select className="select" value={answers['credit_history'] || ''} onChange={pickAnswer('credit_history')}>
@@ -344,6 +383,14 @@ function ApplyLoanContent() {
               <div className="space-between"><span className="muted">Course</span><strong>{form.course}</strong></div>
               <div className="space-between"><span className="muted">Amount</span><strong>${Number(form.amount).toLocaleString()}</strong></div>
               <div className="space-between"><span className="muted">Term</span><strong>{form.duration_months} months</strong></div>
+              {answers['co_signer'] === 'yes' && (
+                <div className="space-between">
+                  <span className="muted">Co-signer</span>
+                  <strong>
+                    {answers.co_signer_name} · {answers.co_signer_phone} · {answers.co_signer_email}
+                  </strong>
+                </div>
+              )}
               <div className="space-between"><span className="muted">Application fee</span><strong>${FEE}.00</strong></div>
             </div>
 

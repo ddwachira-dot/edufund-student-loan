@@ -39,7 +39,7 @@ export default function AdminRates() {
           <h3 className="mb">How it works</h3>
           <ul className="muted" style={{ lineHeight: 1.9, paddingLeft: 18 }}>
             <li>The rate is locked at 8.5% p.a. for every approved loan.</li>
-            <li>Loans are capped at a maximum principal of $3,000.</li>
+            <li>Loans run from a minimum of $500 up to a maximum principal of $3,000.</li>
             <li>Your monthly EMI is generated from the amount, term and this fixed rate.</li>
           </ul>
         </div>

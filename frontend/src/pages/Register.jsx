@@ -12,11 +12,26 @@ export default function Register() {
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
+  const PASSWORD_RE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
+  const isUsPhone = (value) => {
+    let digits = String(value || '').replace(/\D/g, '');
+    if (digits.length === 11 && digits[0] === '1') digits = digits.slice(1);
+    return digits.length === 10 && /^[2-9]\d{2}[2-9]\d{2}\d{4}$/.test(digits);
+  };
+
   const submit = async (e) => {
     e.preventDefault();
     setError('');
     if (!acceptedTerms) {
       setError('You must accept the Terms & Conditions to register');
+      return;
+    }
+    if (!PASSWORD_RE.test(form.password)) {
+      setError('Password must be at least 8 characters and include an uppercase letter, a lowercase letter, a number, and a special character');
+      return;
+    }
+    if (!isUsPhone(form.phone)) {
+      setError('Please enter a valid US phone number');
       return;
     }
     setBusy(true);
@@ -46,12 +61,12 @@ export default function Register() {
             <input className="input" type="email" value={form.email} onChange={set('email')} placeholder="you@school.edu" required />
           </div>
           <div className="field">
-            <label>Password (min 6 characters)</label>
-            <input className="input" type="password" value={form.password} onChange={set('password')} placeholder="••••••••" required minLength={6} />
+            <label>Password (min 8 chars with upper, lower, number &amp; special)</label>
+            <input className="input" type="password" value={form.password} onChange={set('password')} placeholder="••••••••" required minLength={8} />
           </div>
           <div className="field">
-            <label>Phone</label>
-            <input className="input" value={form.phone} onChange={set('phone')} placeholder="+1 555 000 0000" />
+            <label>Phone (US number)</label>
+            <input className="input" value={form.phone} onChange={set('phone')} placeholder="+1 (555) 000-0000" required />
           </div>
           <div className="field">
             <label>Address</label>

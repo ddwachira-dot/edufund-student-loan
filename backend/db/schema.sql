@@ -83,7 +83,7 @@ CREATE TABLE payments (
                  CHECK (payment_type IN ('application_fee','emi','other')),
   amount         NUMERIC(12,2) NOT NULL CHECK (amount > 0),
   method         VARCHAR(30) NOT NULL DEFAULT 'card',
-  reference      VARCHAR(120) NOT NULL,
+  reference      VARCHAR(120) NOT NULL UNIQUE,
   status         VARCHAR(20) NOT NULL DEFAULT 'succeeded'
                  CHECK (status IN ('pending','succeeded','failed')),
   created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()

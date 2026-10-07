@@ -24,6 +24,7 @@ import ApplyLoan from './pages/ApplyLoan';
 import MyLoans from './pages/MyLoans';
 import LoanDetail from './pages/LoanDetail';
 import Payments from './pages/Payments';
+import Checkout from './pages/Checkout';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminApplications from './pages/admin/AdminApplications';
 import AdminRates from './pages/admin/AdminRates';
@@ -110,6 +111,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <Payments />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/checkout"
+            element={
+              <ProtectedRoute>
+                <Checkout />
               </ProtectedRoute>
             }
           />

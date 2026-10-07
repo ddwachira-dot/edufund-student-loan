@@ -2,7 +2,8 @@ const express = require('express');
 const pool = require('../config/db');
 const { authenticate } = require('../middleware/auth');
 const { upload, UPLOAD_DIR } = require('../middleware/upload');
-const { MAX_LOAN_AMOUNT } = require('../config/loan');
+const { MIN_LOAN_AMOUNT, MAX_LOAN_AMOUNT } = require('../config/loan');
+const { canPayFee } = require('../config/fees');
 const path = require('path');
 const fs = require('fs');
 
@@ -26,7 +27,7 @@ router.get('/', async (req, res, next) => {
         ORDER BY la.created_at DESC`,
       [req.user.id]
     );
-    return res.json({ loans: rows });
+    return res.json({ loans: rows.map((l) => ({ ...l, can_pay_fee: canPayFee(l) })) });
   } catch (err) {
     return next(err);
   }
@@ -48,7 +49,7 @@ router.get('/:id', async (req, res, next) => {
       pool.query('SELECT id, file_name, stored_name, mime_type, size_bytes, created_at FROM documents WHERE application_id = $1 ORDER BY created_at DESC', [loan.id]),
       pool.query('SELECT id, payment_type, amount, method, reference, status, created_at FROM payments WHERE application_id = $1 ORDER BY created_at DESC', [loan.id]),
     ]);
-    return res.json({ loan, emis: emis.rows, documents: docs.rows, payments: pays.rows });
+    return res.json({ loan: { ...loan, can_pay_fee: canPayFee(loan) }, emis: emis.rows, documents: docs.rows, payments: pays.rows });
   } catch (err) {
     return next(err);
   }
@@ -66,6 +67,11 @@ router.post('/', async (req, res, next) => {
     }
     if (!(Number(amount) > 0)) {
       return res.status(400).json({ message: 'Loan amount must be positive' });
+    }
+    if (Number(amount) < MIN_LOAN_AMOUNT) {
+      return res.status(400).json({
+        message: `Loan amount must be at least $${MIN_LOAN_AMOUNT.toLocaleString()}`,
+      });
     }
     if (Number(amount) > MAX_LOAN_AMOUNT) {
       return res.status(400).json({ message: `Loan amount cannot exceed $${MAX_LOAN_AMOUNT.toLocaleString()}` });

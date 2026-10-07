@@ -81,7 +81,7 @@ export default function TermsOfService() {
         ))}
         <p className="muted">
           Questions? Contact{' '}
-          <a href="mailto:help@edufund.example">help@edufund.example</a> or{' '}
+          <a href="mailto:support@usfunded.org">support@usfunded.org</a> or{' '}
           <Link to="/register">create an account</Link>.
         </p>
       </div>

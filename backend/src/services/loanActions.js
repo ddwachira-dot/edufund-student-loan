@@ -15,6 +15,9 @@ async function approveApplication(client, loan, adminId, note) {
   if (loan.status !== 'pending') {
     throw new LoanActionError(`Cannot approve an application with status '${loan.status}'`);
   }
+  if (!loan.application_fee_paid) {
+    throw new LoanActionError('The $10 application fee must be paid before an application can be approved');
+  }
 
   const { emi, rows } = buildSchedule(
     Number(loan.amount),

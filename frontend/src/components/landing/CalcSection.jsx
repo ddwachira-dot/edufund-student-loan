@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { computeEmi, money } from '../../utils/emiClient';
 
 const RATE = 8.5;
+const MIN_AMOUNT = 500;
 const MAX_AMOUNT = 3000;
 
 export default function CalcSection() {
@@ -12,7 +13,7 @@ export default function CalcSection() {
   const [months, setMonths] = useState('24');
   const rate = RATE;
 
-  const clampedAmount = Math.min(MAX_AMOUNT, Math.max(0, Number(amount) || 0));
+  const clampedAmount = Math.min(MAX_AMOUNT, Math.max(MIN_AMOUNT, Number(amount) || MIN_AMOUNT));
   const clampedMonths = Math.min(60, Math.max(6, Math.round(Number(months) || 0)));
 
   const c = computeEmi(clampedAmount, clampedMonths, rate);
@@ -34,8 +35,8 @@ export default function CalcSection() {
           <div className="card hoverable">
               <div className="range-block mb">
                 <label htmlFor="calc-amount">Loan amount ($)</label>
-                <input id="calc-amount" className="input" type="number" min="100" max={MAX_AMOUNT} step="50" value={amount} onChange={(e) => setAmount(e.target.value)} />
-                <div className="hint">Between $100 and $3,000.</div>
+                <input id="calc-amount" className="input" type="number" min={MIN_AMOUNT} max={MAX_AMOUNT} step="50" value={amount} onChange={(e) => setAmount(e.target.value)} />
+                <div className="hint">Between $500 and $3,000.</div>
               </div>
 
               <div className="range-block mb">

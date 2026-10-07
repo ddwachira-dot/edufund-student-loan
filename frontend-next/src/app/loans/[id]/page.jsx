@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import api from '@/api/client';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { docUrl } from '@/utils/fileUrl';
@@ -21,10 +21,10 @@ export default function LoanDetail() {
 
 function LoanDetailContent() {
   const { id } = useParams();
+  const router = useRouter();
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [payAmt, setPayAmt] = useState('');
-  const [busy, setBusy] = useState(false);
   const [disMethod, setDisMethod] = useState('');
   const [disAccount, setDisAccount] = useState('');
   const [disBusy, setDisBusy] = useState(false);
@@ -46,7 +46,7 @@ function LoanDetailContent() {
     const reference = qs.get('reference') || qs.get('trxref');
     if (!reference || !id) return;
     setConfirming(true);
-    setPayMsg('Confirming your payment with Paystack…');
+    setPayMsg('Confirming your payment…');
     api
       .post('/payments/confirm', { application_id: id, purpose: 'emi', reference })
       .then(({ data }) => {
@@ -63,22 +63,14 @@ function LoanDetailContent() {
       });
   }, [id, load]);
 
-  const payEmi = async () => {
+  const payEmi = () => {
     setError('');
     setPayMsg('');
-    setBusy(true);
-    try {
-      const { data } = await api.post('/payments/initialize', {
-        application_id: id,
-        purpose: 'emi',
-        amount: Number(payAmt),
-      });
-      setPayMsg('Redirecting you to Paystack to complete the payment…');
-      window.location.href = data.authorization_url;
-    } catch (err) {
-      setError(err.response?.data?.message || 'Could not start payment');
-      setBusy(false);
+    if (!(Number(payAmt) > 0)) {
+      setError('Enter an amount to pay');
+      return;
     }
+    router.push(`/checkout?application_id=${id}&purpose=emi&amount=${Number(payAmt)}`);
   };
 
   const uploadFile = async (e) => {
@@ -174,6 +166,7 @@ function LoanDetailContent() {
 
   const { loan, emis = [], documents = [], payments = [] } = data;
   const canPay = ['active', 'approved'].includes(loan.status);
+  const canPayFee = loan.can_pay_fee;
 
   return (
     <div className="container">
@@ -193,6 +186,23 @@ function LoanDetailContent() {
       {payMsg && (
         <div className={`alert ${payMsg.includes('not') || payMsg.includes('Could not') ? 'error' : 'success'} mb`}>
           {payMsg}
+        </div>
+      )}
+
+      {canPayFee && (
+        <div className="card mb">
+          <div className="space-between">
+            <div>
+              <h3 style={{ margin: 0 }}>Application fee pending</h3>
+              <p className="muted" style={{ margin: '4px 0 0' }}>
+                Pay the $10 application fee to submit this application for review. Your application
+                stays untouched until the fee is paid.
+              </p>
+            </div>
+            <button className="btn success" onClick={() => router.push(`/checkout?application_id=${loan.id}&purpose=application_fee`)}>
+              Pay $10 fee
+            </button>
+          </div>
         </div>
       )}
 
@@ -306,8 +316,8 @@ function LoanDetailContent() {
               value={payAmt}
               onChange={(e) => setPayAmt(e.target.value)}
             />
-            <button className="btn success" onClick={payEmi} disabled={busy || confirming || !payAmt}>
-              {busy ? 'Opening Paystack…' : confirming ? 'Confirming…' : 'Pay now'}
+            <button className="btn success" onClick={payEmi} disabled={confirming || !payAmt}>
+              {confirming ? 'Confirming…' : 'Pay now'}
             </button>
           </div>
         </div>

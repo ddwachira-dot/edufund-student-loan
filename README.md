@@ -200,6 +200,7 @@ Students register from the app at `/register`.
 | Method | Endpoint                              | Auth          | Description                          |
 |--------|---------------------------------------|---------------|--------------------------------------|
 | POST   | /api/auth/register                    | —             | Create student account (blocked if the email is banned) |
+| POST   | /api/auth/register                   | —             | Create account (US phone required; password ≥8 chars with upper, lower, number, special) |
 | POST   | /api/auth/login                       | —             | Get JWT (403 if the account is closed/banned) |
 | GET    | /api/auth/me                          | Bearer        | Current user                         |
 | PATCH  | /api/auth/profile                     | Bearer        | Update name / phone / address        |
@@ -213,7 +214,7 @@ Students register from the app at `/register`.
 | DELETE | /api/loans/documents/:docId           | Student/Admin | Remove document                      |
 | GET    | /api/docs/:stored_name?token=…        | Owner/Admin   | Download a loan or identity document |
 | GET    | /api/avatars/:stored_name?token=…     | Owner         | Download own profile picture (image types only) |
-| GET    | /api/rates                            | —             | Fixed 8.5% p.a. rate + $3,000 cap (EMI estimator) |
+| GET    | /api/rates                            | —             | Fixed 8.5% p.a. rate + $500–$3,000 range (EMI estimator) |
 | GET    | /api/verify/identity                 | Student       | Current identity verification + billing (or null) |
 | POST   | /api/verify/identity                 | Student       | Upload driver's license or passport (multipart `file` + `doc_type`) → pending |
 | DELETE | /api/verify/identity                 | Student       | Remove verification                         |

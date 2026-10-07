@@ -22,6 +22,9 @@ const STEPS = [
    )`,
   `CREATE INDEX IF NOT EXISTS idx_verifications_status ON verifications(status)`,
   `CREATE INDEX IF NOT EXISTS idx_banned_active ON banned_emails(released_at)`,
+  // One payment per Paystack reference: first de-duplicate, then enforce uniqueness.
+  `DELETE FROM payments p USING payments p2 WHERE p.id > p2.id AND p.reference = p2.reference`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_reference ON payments(reference)`,
 ];
 
 async function migrate() {

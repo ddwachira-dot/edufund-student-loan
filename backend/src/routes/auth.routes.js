@@ -9,6 +9,17 @@ const { uploadImage, UPLOAD_DIR } = require('../middleware/upload');
 const router = express.Router();
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PASSWORD_RE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
+
+// Accepts US/NANP numbers only: 10 digits (area code + exchange starting 2-9),
+// optionally preceded by a leading "1".
+function isUsPhone(value) {
+  let digits = String(value || '').replace(/\D/g, '');
+  if (digits.length === 11 && digits[0] === '1') {
+    digits = digits.slice(1);
+  }
+  return digits.length === 10 && /^[2-9]\d{2}[2-9]\d{2}\d{4}$/.test(digits);
+}
 
 const USER_FIELDS = 'id, email, name, role, phone, address, profile_pic, accepted_terms_at, welcome_seen_at, created_at';
 
@@ -34,8 +45,13 @@ router.post('/register', async (req, res, next) => {
     if (!EMAIL_RE.test(email)) {
       return res.status(400).json({ message: 'Invalid email address' });
     }
-    if (String(password).length < 6) {
-      return res.status(400).json({ message: 'Password must be at least 6 characters' });
+    if (!isUsPhone(phone)) {
+      return res.status(400).json({ message: 'A valid US phone number is required' });
+    }
+    if (!PASSWORD_RE.test(String(password))) {
+      return res.status(400).json({
+        message: 'Password must be at least 8 characters and include an uppercase letter, a lowercase letter, a number, and a special character',
+      });
     }
     if (await findActiveBan(email)) {
       return res.status(403).json({ message: 'This email address has been blocked from registering' });

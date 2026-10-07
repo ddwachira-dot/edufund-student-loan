@@ -1,6 +1,9 @@
 const express = require('express');
+const path = require('path');
+const fs = require('fs');
 const pool = require('../config/db');
 const { authenticate, requireAdmin } = require('../middleware/auth');
+const { UPLOAD_DIR } = require('../middleware/upload');
 const {
   approveApplication,
   rejectApplication,
@@ -100,6 +103,34 @@ router.patch('/applications/:id/reject', async (req, res, next) => {
       reason: reason || null,
       account_closed: Boolean(close_account),
     });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+// DELETE /api/admin/applications/:id -> permanently delete a rejected application
+// Only rejected applications are deletable. EMI schedules and uploaded documents
+// cascade away; payment history is kept (application_id becomes NULL via FK).
+router.delete('/applications/:id', async (req, res, next) => {
+  try {
+    const loan = (await pool.query(
+      'SELECT * FROM loan_applications WHERE id = $1', [req.params.id]
+    )).rows[0];
+    if (!loan) return res.status(404).json({ message: 'Application not found' });
+    if (loan.status !== 'rejected') {
+      return res.status(400).json({ message: 'Only rejected applications can be deleted' });
+    }
+
+    const docs = (await pool.query(
+      'SELECT stored_name FROM documents WHERE application_id = $1', [loan.id]
+    )).rows;
+
+    await pool.query('DELETE FROM loan_applications WHERE id = $1', [loan.id]);
+
+    for (const d of docs) {
+      try { fs.unlinkSync(path.join(UPLOAD_DIR, d.stored_name)); } catch (_) { /* ignore */ }
+    }
+    return res.json({ message: 'Application deleted' });
   } catch (err) {
     return next(err);
   }

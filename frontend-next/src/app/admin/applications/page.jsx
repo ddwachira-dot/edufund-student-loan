@@ -26,7 +26,7 @@ function AdminApplicationsContent() {
   const [filter, setFilter] = useState('pending');
   const [rows, setRows] = useState([]);
   const [selected, setSelected] = useState(null); // detail drawer
-  const [action, setAction] = useState(''); // 'approve' | 'reject' | ''
+  const [action, setAction] = useState(''); // 'approve' | 'reject' | 'delete' | ''
   const [rejectReason, setRejectReason] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -71,6 +71,17 @@ function AdminApplicationsContent() {
       load();
     } catch (err) {
       setError(err.response?.data?.message || 'Rejection failed');
+    }
+  };
+
+  const doDelete = async () => {
+    setError('');
+    try {
+      await api.delete(`/admin/applications/${selected.loan.id}`);
+      setSelected(null);
+      load();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Deletion failed');
     }
   };
 
@@ -240,9 +251,27 @@ function AdminApplicationsContent() {
               </div>
             )}
 
-            {selected.loan.status !== 'pending' && (
+            {selected.loan.status !== 'pending' && action !== 'delete' && (
               <div className="mt">
-                <button className="btn outline" onClick={() => setSelected(null)}>Close</button>
+                <div className="flex">
+                  {selected.loan.status === 'rejected' && (
+                    <button className="btn danger" onClick={() => setAction('delete')}>Delete application</button>
+                  )}
+                  <button className="btn outline" onClick={() => setSelected(null)}>Close</button>
+                </div>
+              </div>
+            )}
+
+            {action === 'delete' && (
+              <div className="mt">
+                <p className="muted mb">
+                  This permanently deletes application #{selected.loan.id} and its uploaded documents.
+                  The applicant keeps their account and payment history.
+                </p>
+                <div className="flex">
+                  <button className="btn danger" onClick={doDelete}>Confirm deletion</button>
+                  <button className="btn outline" onClick={() => setAction('')}>Back</button>
+                </div>
               </div>
             )}
           </div>

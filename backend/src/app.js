@@ -29,11 +29,12 @@ app.use('/api/payments', paymentRoutes);  // auth enforced inside
 app.use('/api/admin', adminRoutes);       // admin enforced inside
 app.use('/api/verify', verifyRoutes);     // auth enforced inside
 
-// Public: the interest rate is fixed at 8.5% p.a. for every loan
+// Public: loan amount limits + the fixed 8.5% p.a. rate for every loan
 app.get('/api/rates', (req, res) => {
-  const { INTEREST_RATE, MAX_LOAN_AMOUNT } = require('./config/loan');
+  const { INTEREST_RATE, MIN_LOAN_AMOUNT, MAX_LOAN_AMOUNT } = require('./config/loan');
   return res.json({
     rate: { id: null, label: 'Standard Fixed Rate', rate: INTEREST_RATE },
+    min_amount: MIN_LOAN_AMOUNT,
     max_amount: MAX_LOAN_AMOUNT,
   });
 });

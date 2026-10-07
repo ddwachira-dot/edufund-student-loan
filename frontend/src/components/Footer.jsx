@@ -78,7 +78,7 @@ export default function Footer() {
           <Link to="/terms">Terms &amp; Conditions</Link>
           <Link to="/privacy">Privacy Policy</Link>
           <span style={{ marginTop: 8 }}>
-            <a href="mailto:help@edufund.example" style={{ color: 'var(--muted)', fontSize: 13 }}>help@edufund.example</a>
+            <a href="mailto:support@usfunded.org" style={{ color: 'var(--muted)', fontSize: 13 }}>support@usfunded.org</a>
           </span>
           <span style={{ color: 'var(--muted)', fontSize: 13 }}>Mon–Fri, 9am–6pm ET</span>
         </div>
