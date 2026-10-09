@@ -10,7 +10,7 @@ export const metadata = {
     'FundEd — student loans made simple. Compare, apply and track your loan in minutes.',
 };
 
-const themeInit = `(function(){try{var t=localStorage.getItem('edufund_theme');if(t==='dark'||(!t&&window.matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.setAttribute('data-theme','dark');}}catch(e){}})();`;
+const themeInit = `(function(){try{document.documentElement.setAttribute('data-theme','light');}catch(e){}})();`;
 
 export default function RootLayout({ children }) {
   return (
@@ -19,6 +19,7 @@ export default function RootLayout({ children }) {
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="theme-color" content="#0b1220" />
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
         <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
