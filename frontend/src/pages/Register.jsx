@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 export default function Register() {
   const { register } = useAuth();
   const navigate = useNavigate();
-  const [form, setForm] = useState({ name: '', email: '', password: '', confirm: '', phone: '', address: '' });
+  const [form, setForm] = useState({ name: '', email: '', password: '', confirm: '', phone: '' });
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [show, setShow] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -99,10 +99,6 @@ export default function Register() {
           <div className="field">
             <label>Phone (US number)</label>
             <input className="input" value={form.phone} onChange={set('phone')} placeholder="+1 (555) 000-0000" required />
-          </div>
-          <div className="field">
-            <label>Address</label>
-            <input className="input" value={form.address} onChange={set('address')} placeholder="Current residential address" />
           </div>
           <div className="field terms-row">
             <input
