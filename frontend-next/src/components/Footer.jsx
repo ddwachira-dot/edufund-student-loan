@@ -88,13 +88,14 @@ export default function Footer() {
 
       <div className="footer-bottom">
         <span>© {new Date().getFullYear()} FundEd. All rights reserved.</span>
-        <button type="button" onClick={toggle} className="theme-toggle">
-          {theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-        </button>
-        <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>
+        <span className="disclaimer" style={{ fontSize: 12.5, color: 'var(--muted)' }}>
           FundEd is an educational loan platform — not a bank. Your actual rate and payment may differ from the calculator based on underwriting and eligibility.
         </span>
       </div>
+
+      <button type="button" onClick={toggle} className="footer-theme-toggle" aria-label="Toggle dark mode">
+        {theme === 'dark' ? 'Light mode' : 'Dark mode'}
+      </button>
     </footer>
   );
 }

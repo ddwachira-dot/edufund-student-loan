@@ -723,6 +723,24 @@ tbody tr:hover td { background: var(--surface-2); }
 }
 .footer-bottom .theme-toggle:hover { color: var(--heading); }
 .footer-bottom .theme-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.footer-bottom { padding-right: 96px; }
+.footer-theme-toggle {
+  position: absolute;
+  right: 24px;
+  bottom: 20px;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  padding: 6px 12px;
+  color: #9db0cb;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.footer-theme-toggle:hover { color: #fff; background: rgba(255, 255, 255, 0.12); }
+.footer-theme-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
 
 
@@ -774,6 +792,8 @@ tbody tr:hover td { background: var(--surface-2); }
   .trust { gap: 14px; }
   .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
   .scope-pad { padding: 36px 18px; }
+  .footer-bottom { padding-right: 0; }
+  .footer-theme-toggle { position: static; display: block; margin: 14px 0 0 auto; }
 }
 
 /* Minimal design: square edges everywhere + flat neutral hovers */
