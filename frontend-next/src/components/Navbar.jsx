@@ -130,8 +130,8 @@ export default function Navbar() {
           </div>
         ) : (
           <>
-            <Link href="/login" className="btn outline sm">Login</Link>
-            <Link href="/apply" className="btn accent-grad sm cta">Apply now</Link>
+            <Link href="/login" className="btn outline sm">Sign in</Link>
+            <Link href="/register" className="btn accent-grad sm cta">Sign up</Link>
           </>
         )}
         <button

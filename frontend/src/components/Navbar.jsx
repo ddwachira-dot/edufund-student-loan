@@ -121,8 +121,8 @@ export default function Navbar() {
           </div>
         ) : (
           <>
-            <NavLink to="/login" className="btn outline sm">Login</NavLink>
-            <NavLink to="/apply" className="btn accent-grad sm cta">Apply now</NavLink>
+            <NavLink to="/login" className="btn outline sm">Sign in</NavLink>
+            <NavLink to="/register" className="btn accent-grad sm cta">Sign up</NavLink>
           </>
         )}
         <button className="icon-btn hamburger" onClick={() => setMenuOpen((o) => !o)} aria-label="Open menu" aria-expanded={menuOpen}>

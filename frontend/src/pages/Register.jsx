@@ -5,8 +5,10 @@ import { useAuth } from '../context/AuthContext';
 export default function Register() {
   const { register } = useAuth();
   const navigate = useNavigate();
-  const [form, setForm] = useState({ name: '', email: '', password: '', phone: '', address: '' });
+  const [form, setForm] = useState({ name: '', email: '', password: '', confirm: '', phone: '', address: '' });
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [show, setShow] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -28,6 +30,10 @@ export default function Register() {
     }
     if (!PASSWORD_RE.test(form.password)) {
       setError('Password must be at least 8 characters and include an uppercase letter, a lowercase letter, a number, and a special character');
+      return;
+    }
+    if (form.confirm !== form.password) {
+      setError('Passwords do not match');
       return;
     }
     if (!isUsPhone(form.phone)) {
@@ -62,7 +68,33 @@ export default function Register() {
           </div>
           <div className="field">
             <label>Password (min 8 chars with upper, lower, number &amp; special)</label>
-            <input className="input" type="password" value={form.password} onChange={set('password')} placeholder="••••••••" required minLength={8} />
+            <div className="password-wrap">
+              <input className="input" type={show ? 'text' : 'password'} value={form.password} onChange={set('password')} placeholder="••••••••" required minLength={8} />
+              <button
+                type="button"
+                className="password-toggle"
+                onClick={() => setShow((s) => !s)}
+                aria-label={show ? 'Hide password' : 'Show password'}
+                title={show ? 'Hide password' : 'Show password'}
+              >
+                {show ? <EyeOffIcon /> : <EyeIcon />}
+              </button>
+            </div>
+          </div>
+          <div className="field">
+            <label>Confirm password</label>
+            <div className="password-wrap">
+              <input className="input" type={showConfirm ? 'text' : 'password'} value={form.confirm} onChange={set('confirm')} placeholder="••••••••" required minLength={8} />
+              <button
+                type="button"
+                className="password-toggle"
+                onClick={() => setShowConfirm((s) => !s)}
+                aria-label={showConfirm ? 'Hide password' : 'Show password'}
+                title={showConfirm ? 'Hide password' : 'Show password'}
+              >
+                {showConfirm ? <EyeOffIcon /> : <EyeIcon />}
+              </button>
+            </div>
           </div>
           <div className="field">
             <label>Phone (US number)</label>
@@ -99,5 +131,25 @@ export default function Register() {
         </p>
       </div>
     </div>
+  );
+}
+
+function EyeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
+function EyeOffIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
+      <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+      <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24" />
+      <path d="M1 1l22 22" />
+    </svg>
   );
 }
