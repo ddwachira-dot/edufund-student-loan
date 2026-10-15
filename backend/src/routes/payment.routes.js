@@ -5,6 +5,7 @@ const { authenticate } = require('../middleware/auth');
 const { round2 } = require('../utils/emi');
 const paystack = require('../config/paystack');
 const { APPLICATION_FEE, FEE_CANCEL_NOTE, canPayFee } = require('../config/fees');
+const emailService = require('../services/email');
 
 const router = express.Router();
 const CURRENCY = process.env.PAYSTACK_CURRENCY || 'USD';
@@ -338,6 +339,19 @@ router.post('/confirm', async (req, res, next) => {
         );
         const { rows } = await client.query('SELECT * FROM loan_applications WHERE id = $1', [loan.id]);
         await client.query('COMMIT');
+
+        // Async receipt email
+        if (req.user?.email) {
+          emailService.sendPaymentReceipt({
+            email: req.user.email,
+            name: req.user.name,
+            purpose: 'application_fee',
+            amount: APPLICATION_FEE,
+            reference,
+            date: new Date(),
+          }).catch((err) => console.error('[Email Notification Error - Payment Receipt]:', err));
+        }
+
         return res.json({
           message: 'Application fee paid successfully',
           loan: rows[0],
@@ -372,6 +386,19 @@ router.post('/confirm', async (req, res, next) => {
         return res.status(400).json({ message: result.error });
       }
       await client.query('COMMIT');
+
+      // Async receipt email
+      if (req.user?.email) {
+        emailService.sendPaymentReceipt({
+          email: req.user.email,
+          name: req.user.name,
+          purpose: 'emi',
+          amount: tx.amount / 100,
+          reference,
+          date: new Date(),
+        }).catch((err) => console.error('[Email Notification Error - Payment Receipt]:', err));
+      }
+
       return res.json({ message: 'Payment successful', ...result });
     } catch (err) {
       await client.query('ROLLBACK').catch(() => {});

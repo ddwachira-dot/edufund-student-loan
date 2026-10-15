@@ -11,6 +11,7 @@ const {
   withTransaction,
 } = require('../services/loanActions');
 const { INTEREST_RATE } = require('../config/loan');
+const emailService = require('../services/email');
 
 const router = express.Router();
 
@@ -63,13 +64,29 @@ router.get('/applications/:id', async (req, res, next) => {
 router.patch('/applications/:id/approve', async (req, res, next) => {
   try {
     const loan = (await pool.query(
-      'SELECT * FROM loan_applications WHERE id = $1', [req.params.id]
+      `SELECT la.*, u.name AS applicant_name, u.email AS applicant_email
+         FROM loan_applications la
+         JOIN users u ON u.id = la.user_id
+        WHERE la.id = $1`, [req.params.id]
     )).rows[0];
     if (!loan) return res.status(404).json({ message: 'Application not found' });
 
     const result = await withTransaction((client) =>
       approveApplication(client, loan, req.user.id, req.body?.note)
     );
+
+    // Trigger async loan approval notification email
+    if (loan.applicant_email) {
+      emailService.sendLoanApproved({
+        email: loan.applicant_email,
+        name: loan.applicant_name,
+        loanAmount: loan.amount,
+        durationMonths: loan.duration_months,
+        interestRate: result.rate,
+        monthlyPayment: result.emi,
+      }).catch((err) => console.error('[Email Notification Error - Loan Approved]:', err));
+    }
+
     return res.json({ message: 'Application approved and EMI schedule generated', ...result });
   } catch (err) {
     return next(err);
@@ -82,7 +99,10 @@ router.patch('/applications/:id/reject', async (req, res, next) => {
   try {
     const { reason, close_account } = req.body || {};
     const loan = (await pool.query(
-      'SELECT la.*, u.email FROM loan_applications la JOIN users u ON u.id = la.user_id WHERE la.id = $1',
+      `SELECT la.*, u.name AS applicant_name, u.email AS applicant_email
+         FROM loan_applications la
+         JOIN users u ON u.id = la.user_id
+        WHERE la.id = $1`,
       [req.params.id]
     )).rows[0];
     if (!loan) return res.status(404).json({ message: 'Application not found' });
@@ -92,12 +112,22 @@ router.patch('/applications/:id/reject', async (req, res, next) => {
       if (close_account) {
         await closeAccountAndBan(
           client,
-          { id: loan.user_id, email: loan.email },
+          { id: loan.user_id, email: loan.applicant_email },
           reason || 'Application rejected',
           loan.id
         );
       }
     });
+
+    // Trigger async loan rejection notification email
+    if (loan.applicant_email) {
+      emailService.sendLoanRejected({
+        email: loan.applicant_email,
+        name: loan.applicant_name,
+        reason: reason || null,
+      }).catch((err) => console.error('[Email Notification Error - Loan Rejected]:', err));
+    }
+
     return res.json({
       message: 'Application rejected',
       reason: reason || null,
@@ -236,6 +266,16 @@ router.patch('/verifications/:id/approve', async (req, res, next) => {
       [req.params.id, req.user.id]
     );
     if (!rows[0]) return res.status(404).json({ message: 'Verification not found' });
+
+    // Look up applicant to send approval email
+    const user = (await pool.query('SELECT name, email FROM users WHERE id = $1', [rows[0].user_id])).rows[0];
+    if (user?.email) {
+      emailService.sendVerificationApproved({
+        email: user.email,
+        name: user.name,
+      }).catch((err) => console.error('[Email Notification Error - Verification Approved]:', err));
+    }
+
     return res.json({ verification: rows[0] });
   } catch (err) {
     return next(err);
@@ -254,6 +294,17 @@ router.patch('/verifications/:id/reject', async (req, res, next) => {
       [req.params.id, req.user.id, reason || null]
     );
     if (!rows[0]) return res.status(404).json({ message: 'Verification not found' });
+
+    // Look up applicant to send rejection / re-upload email
+    const user = (await pool.query('SELECT name, email FROM users WHERE id = $1', [rows[0].user_id])).rows[0];
+    if (user?.email) {
+      emailService.sendVerificationRejected({
+        email: user.email,
+        name: user.name,
+        reason: reason || null,
+      }).catch((err) => console.error('[Email Notification Error - Verification Rejected]:', err));
+    }
+
     return res.json({ verification: rows[0] });
   } catch (err) {
     return next(err);
@@ -295,6 +346,117 @@ router.post('/banned/:email/release', async (req, res, next) => {
       );
     });
     return res.json({ message: `Ban released for ${email}` });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+// ----------------------------- Email previews & test -----------------------------
+
+// GET /api/admin/email-preview/:template -> returns rendered HTML for preview
+router.get('/email-preview/:template', (req, res) => {
+  const t = req.params.template;
+  const mockUser = { name: 'Alex Johnson', email: 'alex@example.com' };
+  let html;
+  switch (t) {
+    case 'verification-request':
+      html = emailService.templates.verifyIdentityRequestTemplate({ name: mockUser.name });
+      break;
+    case 'verification-approved':
+      html = emailService.templates.verificationApprovedTemplate({ name: mockUser.name });
+      break;
+    case 'verification-rejected':
+      html = emailService.templates.verificationRejectedTemplate({
+        name: mockUser.name,
+        reason: 'The uploaded National ID was blurry and the expiry date was not clearly visible.',
+      });
+      break;
+    case 'loan-approved':
+      html = emailService.templates.loanApprovedTemplate({
+        name: mockUser.name,
+        loanAmount: 25000,
+        durationMonths: 36,
+        interestRate: 8.5,
+        monthlyPayment: 789.24,
+      });
+      break;
+    case 'loan-rejected':
+      html = emailService.templates.loanRejectedTemplate({
+        name: mockUser.name,
+        reason: 'Unable to verify student enrollment standing for the specified academic institution.',
+      });
+      break;
+    case 'payment-receipt':
+      html = emailService.templates.paymentReceiptTemplate({
+        name: mockUser.name,
+        purpose: 'application_fee',
+        amount: 10,
+        reference: 'PS_DEMO994829',
+        date: new Date(),
+      });
+      break;
+    case 'welcome':
+      html = emailService.templates.welcomeTemplate({ name: mockUser.name });
+      break;
+    default:
+      return res.status(404).send('Template not found. Available: verification-request, verification-approved, verification-rejected, loan-approved, loan-rejected, payment-receipt, welcome');
+  }
+  return res.send(html);
+});
+
+// POST /api/admin/send-test-email -> send a test email to the admin or specified recipient
+router.post('/send-test-email', async (req, res, next) => {
+  try {
+    const { to, template } = req.body || {};
+    const recipient = to || req.user.email;
+    let result;
+    switch (template) {
+      case 'verification-request':
+        result = await emailService.sendVerificationRequest({ email: recipient, name: 'Test Borrower' });
+        break;
+      case 'verification-approved':
+        result = await emailService.sendVerificationApproved({ email: recipient, name: 'Test Borrower' });
+        break;
+      case 'verification-rejected':
+        result = await emailService.sendVerificationRejected({
+          email: recipient,
+          name: 'Test Borrower',
+          reason: 'Document illegible or expired',
+        });
+        break;
+      case 'loan-approved':
+        result = await emailService.sendLoanApproved({
+          email: recipient,
+          name: 'Test Borrower',
+          loanAmount: 25000,
+          durationMonths: 36,
+          interestRate: 8.5,
+          monthlyPayment: 789.24,
+        });
+        break;
+      case 'loan-rejected':
+        result = await emailService.sendLoanRejected({
+          email: recipient,
+          name: 'Test Borrower',
+          reason: 'Underwriting criteria not satisfied',
+        });
+        break;
+      case 'payment-receipt':
+        result = await emailService.sendPaymentReceipt({
+          email: recipient,
+          name: 'Test Borrower',
+          purpose: 'application_fee',
+          amount: 10,
+          reference: 'PS_TEST_RECEIPT',
+          date: new Date(),
+        });
+        break;
+      case 'welcome':
+      default:
+        result = await emailService.sendWelcomeEmail({ email: recipient, name: 'Test Borrower' });
+        break;
+    }
+    return res.json({ message: `Test email (${template || 'welcome'}) sent to ${recipient}`, ...result });
   } catch (err) {
     return next(err);
   }
