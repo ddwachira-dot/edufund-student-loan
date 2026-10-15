@@ -110,21 +110,51 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      <div className="chart-box mt">
-        <h3>Loan disbursements over time</h3>
-        {disbursed.length === 0 ? (
-          <p className="muted">No approved loans yet.</p>
-        ) : (
-          <ResponsiveContainer width="100%" height={220}>
-            <LineChart data={disbursed}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#eef1f6" />
-              <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} />
-              <Tooltip formatter={(v) => money(v)} />
-              <Line type="monotone" dataKey="total" name="Disbursed" stroke="#7048e8" strokeWidth={2} />
-            </LineChart>
-          </ResponsiveContainer>
-        )}
+      <div className="grid grid-2 mt">
+        <div className="chart-box">
+          <h3>Loan disbursements over time</h3>
+          {disbursed.length === 0 ? (
+            <p className="muted">No approved loans yet.</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={220}>
+              <LineChart data={disbursed}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#eef1f6" />
+                <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 11 }} />
+                <Tooltip formatter={(v) => money(v)} />
+                <Line type="monotone" dataKey="total" name="Disbursed" stroke="#7048e8" strokeWidth={2} />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        <div className="chart-box">
+          <h3>🌍 Applications by Country</h3>
+          {!stats.applicationsByCountry || stats.applicationsByCountry.length === 0 ? (
+            <p className="muted">No geographic data recorded yet.</p>
+          ) : (
+            <div style={{ maxHeight: 220, overflowY: 'auto' }}>
+              <table style={{ margin: 0, fontSize: 13 }}>
+                <thead>
+                  <tr>
+                    <th>Country</th>
+                    <th style={{ textAlign: 'right' }}>Applications</th>
+                    <th style={{ textAlign: 'right' }}>Total Volume</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {stats.applicationsByCountry.map((c) => (
+                    <tr key={c.country}>
+                      <td><strong>{c.country}</strong></td>
+                      <td style={{ textAlign: 'right' }}>{c.count}</td>
+                      <td style={{ textAlign: 'right', fontWeight: 600 }}>{money(c.total_amount)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
 
       {stats.recentPayments.length > 0 && (

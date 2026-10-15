@@ -92,6 +92,7 @@ export default function AdminVerifications() {
               <tr>
                 <th>ID</th>
                 <th>Applicant</th>
+                <th>Origin Country</th>
                 <th>Document</th>
                 <th>Uploaded</th>
                 <th>Status</th>
@@ -105,6 +106,10 @@ export default function AdminVerifications() {
                   <td>
                     <strong>{v.applicant_name}</strong>
                     <div className="muted" style={{ fontSize: 12 }}>{v.applicant_email}</div>
+                  </td>
+                  <td>
+                    <span style={{ fontWeight: 600 }}>🌍 {v.user_country || v.billing_country || 'Unknown'}</span>
+                    {v.user_city && <div className="muted" style={{ fontSize: 11 }}>{v.user_city}</div>}
                   </td>
                   <td>{DOC_LABEL[v.doc_type]}</td>
                   <td className="muted">
@@ -135,6 +140,14 @@ export default function AdminVerifications() {
             <table className="mb">
               <tbody>
                 <tr><td className="muted">Applicant</td><td>{selected.applicant_name} ({selected.applicant_email})</td></tr>
+                <tr>
+                  <td className="muted">Origin Country</td>
+                  <td>
+                    <strong>🌍 {selected.user_country || selected.billing_country || 'Unknown'}</strong>
+                    {selected.user_city && ` · ${selected.user_city}`}
+                    {selected.user_ip && <span className="muted" style={{ marginLeft: 8, fontSize: 12 }}>({selected.user_ip})</span>}
+                  </td>
+                </tr>
                 <tr><td className="muted">Document</td><td>{DOC_LABEL[selected.doc_type]}</td></tr>
                 <tr><td className="muted">File</td><td>{selected.file_name}</td></tr>
                 <tr><td className="muted">Uploaded</td><td>{new Date(selected.created_at).toLocaleString()}</td></tr>

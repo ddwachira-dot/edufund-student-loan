@@ -101,6 +101,7 @@ export default function AdminApplications() {
               <tr>
                 <th>ID</th>
                 <th>Applicant</th>
+                <th>Country</th>
                 <th>University / Course</th>
                 <th>Amount</th>
                 <th>Term</th>
@@ -116,6 +117,12 @@ export default function AdminApplications() {
                   <td>
                     <strong>{a.applicant_name}</strong>
                     <div className="muted" style={{ fontSize: 12 }}>{a.applicant_email}</div>
+                  </td>
+                  <td>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
+                      🌍 {a.country || 'Unknown'}
+                    </span>
+                    {a.city && <div className="muted" style={{ fontSize: 11 }}>{a.city}</div>}
                   </td>
                   <td>
                     {a.course}
@@ -157,6 +164,14 @@ export default function AdminApplications() {
             <table className="mb">
               <tbody>
                 <tr><td className="muted">Applicant</td><td>{selected.loan.applicant_name} ({selected.loan.email})</td></tr>
+                <tr>
+                  <td className="muted">Applicant Country</td>
+                  <td>
+                    <strong>🌍 {selected.loan.country || 'Unknown'}</strong>
+                    {selected.loan.city && ` · ${selected.loan.city}`}
+                    {selected.loan.ip && <span className="muted" style={{ marginLeft: 8, fontSize: 12 }}>({selected.loan.ip})</span>}
+                  </td>
+                </tr>
                 <tr><td className="muted">University</td><td>{selected.loan.university}</td></tr>
                 <tr><td className="muted">Course</td><td>{selected.loan.course}</td></tr>
                 <tr><td className="muted">Monthly income</td><td>{selected.loan.monthly_income ? money(selected.loan.monthly_income) : '—'}</td></tr>

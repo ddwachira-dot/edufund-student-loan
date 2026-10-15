@@ -5,6 +5,7 @@ const { upload, UPLOAD_DIR } = require('../middleware/upload');
 const { MIN_LOAN_AMOUNT, MAX_LOAN_AMOUNT } = require('../config/loan');
 const { APPLICATION_FEE, canPayFee } = require('../config/fees');
 const emailService = require('../services/email');
+const { getClientIp, lookupIp } = require('../utils/geo');
 const path = require('path');
 const fs = require('fs');
 
@@ -82,7 +83,7 @@ router.post('/', async (req, res, next) => {
       return res.status(400).json({ message: 'duration_months must be between 1 and 120' });
     }
 
-    // Identity document must be uploaded AND approved by an admin first
+    // Identity document must be approved by an admin first
     const verified = await pool.query(
       `SELECT id FROM verifications
         WHERE user_id = $1 AND status = 'approved'`,
@@ -94,6 +95,19 @@ router.post('/', async (req, res, next) => {
       });
     }
 
+    const clientIp = getClientIp(req);
+    const geo = await lookupIp(clientIp);
+
+    // Update user's last known IP and country in background
+    if (clientIp) {
+      pool.query(
+        `UPDATE users
+            SET last_ip = $1, country = COALESCE($2, country), country_code = COALESCE($3, country_code), city = COALESCE($4, city)
+          WHERE id = $5`,
+        [clientIp, geo?.country, geo?.countryCode, geo?.city, req.user.id]
+      ).catch(() => {});
+    }
+
     // The $10 application fee is charged via Paystack after the loan is created
     // (see POST /api/payments/initialize + /confirm)
     const userRow = await pool.query('SELECT name, email FROM users WHERE id = $1', [req.user.id]);
@@ -102,8 +116,9 @@ router.post('/', async (req, res, next) => {
     const { rows } = await pool.query(
       `INSERT INTO loan_applications
          (user_id, full_name, email, university, course, amount, duration_months,
-          monthly_income, purpose, questionnaire, application_fee_paid, status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,FALSE,'pending')
+          monthly_income, purpose, questionnaire, application_fee_paid, status,
+          applicant_ip, applicant_country, applicant_country_code, applicant_city)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,FALSE,'pending',$11,$12,$13,$14)
        RETURNING *`,
       [
         req.user.id,
@@ -116,6 +131,10 @@ router.post('/', async (req, res, next) => {
         monthly_income ? Number(monthly_income) : null,
         purpose || null,
         typeof questionnaire === 'object' && questionnaire ? questionnaire : {},
+        clientIp || null,
+        geo?.country || null,
+        geo?.countryCode || null,
+        geo?.city || null,
       ]
     );
 

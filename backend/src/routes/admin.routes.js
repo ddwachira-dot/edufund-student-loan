@@ -23,7 +23,13 @@ router.get('/applications', async (req, res, next) => {
     const { status } = req.query;
     const params = [];
     let sql = `
-      SELECT la.*, u.name AS applicant_name, u.email AS applicant_email
+      SELECT la.*,
+             u.name AS applicant_name,
+             u.email AS applicant_email,
+             COALESCE(la.applicant_country, u.country, 'Unknown') AS country,
+             COALESCE(la.applicant_country_code, u.country_code) AS country_code,
+             COALESCE(la.applicant_city, u.city) AS city,
+             COALESCE(la.applicant_ip, u.last_ip) AS ip
         FROM loan_applications la
         JOIN users u ON u.id = la.user_id`;
     if (status && status !== 'all') {
@@ -42,7 +48,13 @@ router.get('/applications', async (req, res, next) => {
 router.get('/applications/:id', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      `SELECT la.*, u.name AS applicant_name, u.email AS applicant_email
+      `SELECT la.*,
+              u.name AS applicant_name,
+              u.email AS applicant_email,
+              COALESCE(la.applicant_country, u.country, 'Unknown') AS country,
+              COALESCE(la.applicant_country_code, u.country_code) AS country_code,
+              COALESCE(la.applicant_city, u.city) AS city,
+              COALESCE(la.applicant_ip, u.last_ip) AS ip
          FROM loan_applications la JOIN users u ON u.id = la.user_id
         WHERE la.id = $1`, [req.params.id]
     );
@@ -174,7 +186,7 @@ router.delete('/applications/:id', async (req, res, next) => {
 // GET /api/admin/stats  -> numbers + chart series for the admin dashboard
 router.get('/stats', async (req, res, next) => {
   try {
-    const [counts, money, disbursedByMonth, paymentsByMonth, recent, rates] = await Promise.all([
+    const [counts, money, disbursedByMonth, paymentsByMonth, recent, rates, byCountry] = await Promise.all([
       pool.query(`SELECT status, COUNT(*)::int AS n FROM loan_applications GROUP BY status`),
       pool.query(`SELECT
           COALESCE(SUM(CASE WHEN p.payment_type = 'application_fee' THEN p.amount END), 0)   AS fee_revenue,
@@ -198,6 +210,16 @@ router.get('/stats', async (req, res, next) => {
         FROM payments p JOIN users u ON u.id = p.user_id
         ORDER BY p.created_at DESC LIMIT 10`),
       pool.query(`SELECT id, label, rate, is_active, created_at FROM interest_rates ORDER BY created_at DESC`),
+      pool.query(`SELECT
+          COALESCE(la.applicant_country, u.country, 'Unknown') AS country,
+          COALESCE(la.applicant_country_code, u.country_code) AS country_code,
+          COUNT(*)::int AS count,
+          COALESCE(SUM(la.amount), 0) AS total_amount
+        FROM loan_applications la
+        JOIN users u ON u.id = la.user_id
+        GROUP BY 1, 2
+        ORDER BY count DESC
+        LIMIT 10`),
     ]);
 
     const byStatus = counts.rows.reduce((acc, r) => ({ ...acc, [r.status]: r.n }), {});
@@ -208,6 +230,7 @@ router.get('/stats', async (req, res, next) => {
       paymentsByMonth: paymentsByMonth.rows,
       recentPayments: recent.rows,
       rates: rates.rows,
+      applicationsByCountry: byCountry.rows,
     });
   } catch (err) {
     return next(err);
@@ -238,6 +261,7 @@ router.get('/verifications', async (req, res, next) => {
     const params = [];
     let sql = `
       SELECT v.*, u.name AS applicant_name, u.email AS applicant_email,
+             u.last_ip AS user_ip, u.country AS user_country, u.country_code AS user_country_code, u.city AS user_city,
              b.method AS billing_method, b.full_name AS billing_full_name,
              b.address AS billing_address, b.city AS billing_city, b.state AS billing_state,
              b.zip AS billing_zip, b.country AS billing_country,

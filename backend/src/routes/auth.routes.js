@@ -6,6 +6,7 @@ const pool = require('../config/db');
 const { auth } = require('../config/firebase');
 const { authenticate, signToken } = require('../middleware/auth');
 const { uploadImage, UPLOAD_DIR } = require('../middleware/upload');
+const { getClientIp, lookupIp } = require('../utils/geo');
 
 const router = express.Router();
 
@@ -22,7 +23,7 @@ function isUsPhone(value) {
   return digits.length === 10 && /^[2-9]\d{2}[2-9]\d{2}\d{4}$/.test(digits);
 }
 
-const USER_FIELDS = 'id, email, firebase_uid, name, role, phone, address, profile_pic, accepted_terms_at, welcome_seen_at, created_at';
+const USER_FIELDS = 'id, email, firebase_uid, name, role, phone, address, profile_pic, accepted_terms_at, welcome_seen_at, last_ip, country, country_code, city, created_at';
 
 // Returns the active ban row for an email, or null.
 async function findActiveBan(email) {
@@ -69,6 +70,9 @@ router.post('/firebase-register', async (req, res, next) => {
       return res.status(403).json({ message: 'This email address has been blocked from registering' });
     }
 
+    const clientIp = getClientIp(req);
+    const geo = await lookupIp(clientIp);
+
     // Check if user exists by firebase_uid or email
     const { rows: existingRows } = await pool.query(
       'SELECT id, role, firebase_uid, closed_at, closed_reason FROM users WHERE firebase_uid = $1 OR email = $2 LIMIT 1',
@@ -87,17 +91,21 @@ router.post('/firebase-register', async (req, res, next) => {
                 name = COALESCE($2, name),
                 phone = COALESCE($3, phone),
                 address = COALESCE($4, address),
-                accepted_terms_at = COALESCE(accepted_terms_at, NOW())
-          WHERE id = $5`,
-        [decoded.uid, displayName, phone || null, address || null, existing.id]
+                accepted_terms_at = COALESCE(accepted_terms_at, NOW()),
+                last_ip = COALESCE($5, last_ip),
+                country = COALESCE($6, country),
+                country_code = COALESCE($7, country_code),
+                city = COALESCE($8, city)
+          WHERE id = $9`,
+        [decoded.uid, displayName, phone || null, address || null, clientIp, geo?.country, geo?.countryCode, geo?.city, existing.id]
       );
       userId = existing.id;
     } else {
       const { rows: inserted } = await pool.query(
-        `INSERT INTO users (email, firebase_uid, name, role, phone, address, accepted_terms_at)
-         VALUES ($1, $2, $3, 'student', $4, $5, NOW())
+        `INSERT INTO users (email, firebase_uid, name, role, phone, address, accepted_terms_at, last_ip, country, country_code, city)
+         VALUES ($1, $2, $3, 'student', $4, $5, NOW(), $6, $7, $8, $9)
          RETURNING id`,
-        [email, decoded.uid, displayName, phone || null, address || null]
+        [email, decoded.uid, displayName, phone || null, address || null, clientIp, geo?.country, geo?.countryCode, geo?.city]
       );
       userId = inserted[0].id;
     }
@@ -152,15 +160,17 @@ router.post('/firebase-login', async (req, res, next) => {
     );
 
     let user = rows[0];
+    const clientIp = getClientIp(req);
 
     // If user doesn't exist in Postgres yet (e.g. direct Firebase sign-in), create default student record
     if (!user) {
+      const geo = await lookupIp(clientIp);
       const displayName = (decoded.name || email.split('@')[0] || 'Student').trim();
       const { rows: created } = await pool.query(
-        `INSERT INTO users (email, firebase_uid, name, role, accepted_terms_at)
-         VALUES ($1, $2, $3, 'student', NOW())
+        `INSERT INTO users (email, firebase_uid, name, role, accepted_terms_at, last_ip, country, country_code, city)
+         VALUES ($1, $2, $3, 'student', NOW(), $4, $5, $6, $7)
          RETURNING ${USER_FIELDS}`,
-        [email, decoded.uid, displayName]
+        [email, decoded.uid, displayName, clientIp, geo?.country, geo?.countryCode, geo?.city]
       );
       user = created[0];
     } else {
@@ -168,6 +178,17 @@ router.post('/firebase-login', async (req, res, next) => {
         return res.status(403).json({
           message: `This account has been closed. Reason: ${user.closed_reason || 'no reason recorded'}`,
         });
+      }
+      // Async update IP and location on login
+      if (clientIp && clientIp !== user.last_ip) {
+        lookupIp(clientIp).then((geo) => {
+          pool.query(
+            `UPDATE users
+                SET last_ip = $1, country = COALESCE($2, country), country_code = COALESCE($3, country_code), city = COALESCE($4, city)
+              WHERE id = $5`,
+            [clientIp, geo?.country, geo?.countryCode, geo?.city, user.id]
+          ).catch(() => {});
+        }).catch(() => {});
       }
       if (!user.firebase_uid) {
         await pool.query('UPDATE users SET firebase_uid = $1 WHERE id = $2', [decoded.uid, user.id]);
