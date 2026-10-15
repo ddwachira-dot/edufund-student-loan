@@ -75,12 +75,14 @@ router.patch('/applications/:id/approve', async (req, res, next) => {
       approveApplication(client, loan, req.user.id, req.body?.note)
     );
 
-    // Trigger async loan approval notification email
+    // Trigger async loan approval notification email with exact university, course and amount
     if (loan.applicant_email) {
       emailService.sendLoanApproved({
         email: loan.applicant_email,
         name: loan.applicant_name,
         loanAmount: loan.amount,
+        university: loan.university,
+        course: loan.course,
         durationMonths: loan.duration_months,
         interestRate: result.rate,
         monthlyPayment: result.emi,
@@ -119,11 +121,14 @@ router.patch('/applications/:id/reject', async (req, res, next) => {
       }
     });
 
-    // Trigger async loan rejection notification email
+    // Trigger async loan rejection notification email with exact details
     if (loan.applicant_email) {
       emailService.sendLoanRejected({
         email: loan.applicant_email,
         name: loan.applicant_name,
+        loanAmount: loan.amount,
+        university: loan.university,
+        course: loan.course,
         reason: reason || null,
       }).catch((err) => console.error('[Email Notification Error - Loan Rejected]:', err));
     }

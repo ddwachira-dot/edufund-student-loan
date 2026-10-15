@@ -3,7 +3,8 @@ const pool = require('../config/db');
 const { authenticate } = require('../middleware/auth');
 const { upload, UPLOAD_DIR } = require('../middleware/upload');
 const { MIN_LOAN_AMOUNT, MAX_LOAN_AMOUNT } = require('../config/loan');
-const { canPayFee } = require('../config/fees');
+const { APPLICATION_FEE, canPayFee } = require('../config/fees');
+const emailService = require('../services/email');
 const path = require('path');
 const fs = require('fs');
 
@@ -119,6 +120,21 @@ router.post('/', async (req, res, next) => {
     );
 
     const loan = rows[0];
+
+    // Trigger async application received notification email with exact applicant details
+    if (user?.email) {
+      emailService.sendLoanSubmitted({
+        email: user.email,
+        name: user.name,
+        loanAmount: loan.amount,
+        university: loan.university,
+        course: loan.course,
+        durationMonths: loan.duration_months,
+        feePaid: loan.application_fee_paid,
+        feeAmount: APPLICATION_FEE,
+        checkoutUrl: `${process.env.FRONTEND_URL || 'https://usfunded.org'}/checkout?application_id=${loan.id}&purpose=application_fee`,
+      }).catch((err) => console.error('[Email Notification Error - Loan Submitted]:', err));
+    }
 
     return res.status(201).json({ loan });
   } catch (err) {

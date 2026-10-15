@@ -67,12 +67,35 @@ async function sendVerificationRejected({ email, name, reason, reuploadUrl }) {
 }
 
 /**
- * 4. Send Loan Approved Notification
+ * 4. Send Loan Application Received Notification
  */
-async function sendLoanApproved({ email, name, loanAmount, durationMonths, interestRate, monthlyPayment, dashboardUrl }) {
+async function sendLoanSubmitted({ email, name, loanAmount, university, course, durationMonths, feePaid, feeAmount, checkoutUrl }) {
+  const html = templates.loanSubmittedTemplate({
+    name,
+    loanAmount,
+    university,
+    course,
+    durationMonths,
+    feePaid,
+    feeAmount,
+    checkoutUrl,
+  });
+  return sendMail({
+    to: email,
+    subject: `Application Received: $${Number(loanAmount || 0).toLocaleString()} Student Loan - USFunded`,
+    html,
+  });
+}
+
+/**
+ * 5. Send Loan Approved Notification
+ */
+async function sendLoanApproved({ email, name, loanAmount, university, course, durationMonths, interestRate, monthlyPayment, dashboardUrl }) {
   const html = templates.loanApprovedTemplate({
     name,
     loanAmount,
+    university,
+    course,
     durationMonths,
     interestRate,
     monthlyPayment,
@@ -80,16 +103,16 @@ async function sendLoanApproved({ email, name, loanAmount, durationMonths, inter
   });
   return sendMail({
     to: email,
-    subject: 'Congratulations! Your Loan Application Has Been Approved - USFunded',
+    subject: `Congratulations! Your $${Number(loanAmount || 0).toLocaleString()} Loan Application Has Been Approved - USFunded`,
     html,
   });
 }
 
 /**
- * 5. Send Loan Rejected Notification
+ * 6. Send Loan Rejected Notification
  */
-async function sendLoanRejected({ email, name, reason, supportUrl }) {
-  const html = templates.loanRejectedTemplate({ name, reason, supportUrl });
+async function sendLoanRejected({ email, name, loanAmount, university, course, reason, supportUrl }) {
+  const html = templates.loanRejectedTemplate({ name, loanAmount, university, course, reason, supportUrl });
   return sendMail({
     to: email,
     subject: 'Update Regarding Your Student Loan Application - USFunded',
@@ -98,7 +121,7 @@ async function sendLoanRejected({ email, name, reason, supportUrl }) {
 }
 
 /**
- * 6. Send Payment Confirmation Receipt
+ * 7. Send Payment Confirmation Receipt
  */
 async function sendPaymentReceipt({ email, name, purpose, amount, reference, date, receiptUrl }) {
   const html = templates.paymentReceiptTemplate({
@@ -120,7 +143,7 @@ async function sendPaymentReceipt({ email, name, purpose, amount, reference, dat
 }
 
 /**
- * 7. Send Welcome Email
+ * 8. Send Welcome Email
  */
 async function sendWelcomeEmail({ email, name, dashboardUrl }) {
   const html = templates.welcomeTemplate({ name, dashboardUrl });
@@ -136,6 +159,7 @@ module.exports = {
   sendVerificationRequest,
   sendVerificationApproved,
   sendVerificationRejected,
+  sendLoanSubmitted,
   sendLoanApproved,
   sendLoanRejected,
   sendPaymentReceipt,

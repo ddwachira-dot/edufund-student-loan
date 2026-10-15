@@ -215,9 +215,80 @@ function verificationRejectedTemplate({ name, reason, reuploadUrl = `${SITE_URL}
 }
 
 /**
- * 4. Loan Application Approved
+ * 4. Loan Application Submitted (Confirmation to Student)
  */
-function loanApprovedTemplate({ name, loanAmount, durationMonths = 36, interestRate = 8.5, monthlyPayment, dashboardUrl = `${SITE_URL}/dashboard` }) {
+function loanSubmittedTemplate({ name, loanAmount, university, course, durationMonths, feePaid = false, feeAmount = 1, checkoutUrl = `${SITE_URL}/loans` }) {
+  const content = `
+    <p>Hello ${name || 'Borrower'},</p>
+    <p>Your student loan application has been successfully submitted and is currently queued for administrative and credit review.</p>
+    
+    <!-- Application Details Card -->
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; margin: 24px 0;">
+      <tr>
+        <td style="padding: 16px 20px; border-bottom: 1px solid #e2e8f0;">
+          <span style="font-size: 12px; color: #64748b; text-transform: uppercase; font-weight: 600;">Loan Amount Applied For</span>
+          <div style="font-size: 22px; font-weight: 700; color: #0a1128; margin-top: 4px;">
+            $${Number(loanAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
+          </div>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding: 16px 20px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+              <td class="detail-col" style="padding-bottom: 10px;">
+                <span style="font-size: 12px; color: #64748b; display: block;">University / Institution</span>
+                <strong style="color: #0a1128; font-size: 14.5px;">${university || 'Higher Education Institution'}</strong>
+              </td>
+              <td class="detail-col" style="padding-bottom: 10px;">
+                <span style="font-size: 12px; color: #64748b; display: block;">Course / Program</span>
+                <strong style="color: #0a1128; font-size: 14.5px;">${course || 'Academic Program'}</strong>
+              </td>
+            </tr>
+            <tr>
+              <td class="detail-col" style="padding-top: 6px;">
+                <span style="font-size: 12px; color: #64748b; display: block;">Requested Term</span>
+                <strong style="color: #0a1128; font-size: 14.5px;">${durationMonths || 12} Months</strong>
+              </td>
+              <td class="detail-col" style="padding-top: 6px;">
+                <span style="font-size: 12px; color: #64748b; display: block;">Application Fee ($${feeAmount})</span>
+                <strong style="color: ${feePaid ? '#059669' : '#d97706'}; font-size: 14.5px;">
+                  ${feePaid ? '✓ Paid' : 'Pending Payment'}
+                </strong>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+
+    ${!feePaid ? `
+    <div style="background-color: #fffbeb; border: 1px solid #fef3c7; border-radius: 6px; padding: 14px 18px; margin: 20px 0;">
+      <p style="margin: 0; color: #92400e; font-size: 13.5px; line-height: 1.5;">
+        <strong>Important:</strong> Your application review begins once the $${feeAmount}.00 application fee is completed. You can complete the card checkout anytime from your dashboard.
+      </p>
+    </div>
+    ` : ''}
+
+    <p>You can track the live review progress of your application at any time in your dashboard.</p>
+  `;
+
+  return baseLayout({
+    title: 'Loan Application Received',
+    preheader: `Your application for $${Number(loanAmount || 0).toLocaleString()} USD has been received.`,
+    badge: 'Application Submitted',
+    badgeColor: '#006994',
+    badgeBg: '#e6f0f5',
+    content,
+    ctaText: feePaid ? 'View Application Status' : `Pay $${feeAmount} Application Fee`,
+    ctaUrl: checkoutUrl,
+  });
+}
+
+/**
+ * 5. Loan Application Approved
+ */
+function loanApprovedTemplate({ name, loanAmount, university, course, durationMonths = 36, interestRate = 8.5, monthlyPayment, dashboardUrl = `${SITE_URL}/dashboard` }) {
   const content = `
     <p>Hello ${name || 'Borrower'},</p>
     <p>We are delighted to inform you that your USFunded student loan application has been officially <strong>approved</strong>!</p>
@@ -235,22 +306,36 @@ function loanApprovedTemplate({ name, loanAmount, durationMonths = 36, interestR
       <tr>
         <td style="padding: 16px 20px;">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+            ${university || course ? `
             <tr>
-              <td class="detail-col" style="padding-bottom: 8px;">
+              <td class="detail-col" style="padding-bottom: 10px;">
+                <span style="font-size: 12px; color: #64748b; display: block;">University</span>
+                <strong style="color: #0a1128; font-size: 14.5px;">${university}</strong>
+              </td>
+              <td class="detail-col" style="padding-bottom: 10px;">
+                <span style="font-size: 12px; color: #64748b; display: block;">Course</span>
+                <strong style="color: #0a1128; font-size: 14.5px;">${course}</strong>
+              </td>
+            </tr>
+            ` : ''}
+            <tr>
+              <td class="detail-col" style="padding-top: 4px; padding-bottom: 4px;">
                 <span style="font-size: 12px; color: #64748b; display: block;">Fixed Interest Rate</span>
                 <strong style="color: #0a1128; font-size: 14.5px;">${interestRate}% p.a.</strong>
               </td>
-              <td class="detail-col" style="padding-bottom: 8px;">
+              <td class="detail-col" style="padding-top: 4px; padding-bottom: 4px;">
                 <span style="font-size: 12px; color: #64748b; display: block;">Repayment Term</span>
                 <strong style="color: #0a1128; font-size: 14.5px;">${durationMonths} Months</strong>
               </td>
-              ${monthlyPayment ? `
-              <td class="detail-col" style="padding-bottom: 8px;">
-                <span style="font-size: 12px; color: #64748b; display: block;">Estimated Monthly EMI</span>
-                <strong style="color: #006994; font-size: 14.5px;">$${Number(monthlyPayment).toFixed(2)}</strong>
-              </td>
-              ` : ''}
             </tr>
+            ${monthlyPayment ? `
+            <tr>
+              <td colspan="2" style="padding-top: 8px;">
+                <span style="font-size: 12px; color: #64748b; display: block;">Monthly EMI Instalment</span>
+                <strong style="color: #006994; font-size: 16px;">$${Number(monthlyPayment).toFixed(2)} USD / month</strong>
+              </td>
+            </tr>
+            ` : ''}
           </table>
         </td>
       </tr>
@@ -272,14 +357,22 @@ function loanApprovedTemplate({ name, loanAmount, durationMonths = 36, interestR
 }
 
 /**
- * 5. Loan Application Rejected
+ * 6. Loan Application Rejected
  */
-function loanRejectedTemplate({ name, reason, supportUrl = `${SITE_URL}/loans` }) {
+function loanRejectedTemplate({ name, loanAmount, university, course, reason, supportUrl = `${SITE_URL}/loans` }) {
   const content = `
     <p>Hello ${name || 'Student'},</p>
     <p>Thank you for submitting your student loan application with USFunded. Following a careful review by our credit assessment committee, we regret to inform you that we are unable to approve your application at this time.</p>
     
-    <div style="background-color: #f9fafb; border: 1px solid #e5e9f2; border-left: 4px solid #ef4444; border-radius: 4px; padding: 16px 20px; margin: 24px 0;">
+    ${loanAmount || university ? `
+    <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 14px 18px; margin: 18px 0; font-size: 13.5px;">
+      ${loanAmount ? `<div><span style="color: #64748b;">Amount Applied:</span> <strong style="color: #0a1128;">$${Number(loanAmount).toLocaleString()} USD</strong></div>` : ''}
+      ${university ? `<div style="margin-top: 4px;"><span style="color: #64748b;">Institution:</span> <strong style="color: #0a1128;">${university}</strong></div>` : ''}
+      ${course ? `<div style="margin-top: 4px;"><span style="color: #64748b;">Course:</span> <strong style="color: #0a1128;">${course}</strong></div>` : ''}
+    </div>
+    ` : ''}
+
+    <div style="background-color: #f9fafb; border: 1px solid #e5e9f2; border-left: 4px solid #ef4444; border-radius: 4px; padding: 16px 20px; margin: 20px 0;">
       <strong style="color: #111827; font-size: 13.5px; display: block; margin-bottom: 4px;">Assessment Feedback:</strong>
       <p style="margin: 0; color: #4b5563; font-size: 14px;">
         ${reason || 'The application did not meet the underwriting criteria for the requested amount or program.'}
@@ -385,6 +478,7 @@ module.exports = {
   verifyIdentityRequestTemplate,
   verificationApprovedTemplate,
   verificationRejectedTemplate,
+  loanSubmittedTemplate,
   loanApprovedTemplate,
   loanRejectedTemplate,
   paymentReceiptTemplate,
