@@ -1,5 +1,5 @@
 // Application-fee policy shared across payment + loan routes.
-const APPLICATION_FEE = Number(process.env.APPLICATION_FEE || 1);
+const APPLICATION_FEE = Number(process.env.APPLICATION_FEE || 10);
 
 // Marker note for applications auto-rejected when the student cancels the fee checkout.
 // Confirming the fee later restores only applications carrying this exact note.

@@ -395,11 +395,23 @@ function loanRejectedTemplate({ name, loanAmount, university, course, reason, su
 }
 
 /**
- * 6. Payment Receipt / Confirmation
+ * 7. Payment Receipt / Confirmation
  */
-function paymentReceiptTemplate({ name, purpose = 'Application Fee', amount, reference, date, receiptUrl = `${SITE_URL}/loans` }) {
+function paymentReceiptTemplate({
+  name,
+  purpose = 'application_fee',
+  amount,
+  reference,
+  date,
+  receiptUrl = `${SITE_URL}/loans`,
+  loanAmount,
+  university,
+  course,
+  durationMonths,
+}) {
   const formattedDate = date ? new Date(date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : new Date().toLocaleDateString('en-US');
-  const label = purpose === 'application_fee' ? 'Application Processing Fee' : 'Loan EMI Repayment';
+  const isFee = purpose === 'application_fee';
+  const label = isFee ? 'Application Processing Fee' : 'Loan EMI Repayment';
 
   const content = `
     <p>Hello ${name || 'Customer'},</p>
@@ -427,17 +439,62 @@ function paymentReceiptTemplate({ name, purpose = 'Application Fee', amount, ref
       </tr>
     </table>
 
-    <p>Please keep this receipt for your records. Your updated loan balance and payment history are available in your portal.</p>
+    ${isFee ? `
+    <!-- Loan Application Under Review Details -->
+    <div style="background-color: #ffffff; border: 1px solid #d2d9e6; border-radius: 6px; padding: 20px; margin: 24px 0;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+        <span style="font-size: 11.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #64748b;">Application Status</span>
+        <span style="background-color: #fef3c7; color: #92400e; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 10px; text-transform: uppercase; border: 1px solid #fde68a;">
+          Pending Admin Review
+        </span>
+      </div>
+
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size: 13.5px; line-height: 1.8;">
+        ${loanAmount ? `
+        <tr>
+          <td style="color: #64748b; padding: 3px 0;">Loan Amount Applied For:</td>
+          <td align="right" style="color: #0a1128; font-weight: 700; font-size: 15px;">$${Number(loanAmount).toLocaleString()} USD</td>
+        </tr>
+        ` : ''}
+        ${university ? `
+        <tr>
+          <td style="color: #64748b; padding: 3px 0;">University / Institution:</td>
+          <td align="right" style="color: #0a1128; font-weight: 600;">${university}</td>
+        </tr>
+        ` : ''}
+        ${course ? `
+        <tr>
+          <td style="color: #64748b; padding: 3px 0;">Course / Degree:</td>
+          <td align="right" style="color: #0a1128; font-weight: 600;">${course}</td>
+        </tr>
+        ` : ''}
+        ${durationMonths ? `
+        <tr>
+          <td style="color: #64748b; padding: 3px 0;">Repayment Term:</td>
+          <td align="right" style="color: #0a1128; font-weight: 600;">${durationMonths} Months</td>
+        </tr>
+        ` : ''}
+      </table>
+
+      <div style="background-color: #f8fafc; border-left: 3px solid #006994; padding: 10px 14px; margin-top: 14px; font-size: 12.5px; color: #475569; line-height: 1.5;">
+        <strong>Next Step:</strong> Your application has been moved into the active priority review queue. An administrator is currently reviewing your academic details and identity documents. You will receive an email as soon as a decision is made.
+      </div>
+    </div>
+    ` : ''}
+
+    <p>Please keep this receipt for your records. You can check your application status and payment history anytime in your dashboard.</p>
   `;
 
   return baseLayout({
-    title: 'Payment Receipt Confirmed',
-    preheader: `Payment of $${Number(amount || 0).toFixed(2)} USD successfully received.`,
-    badge: 'Payment Confirmed',
+    title: isFee ? 'Application Fee Confirmed — Under Review' : 'Payment Receipt Confirmed',
+    preheader: isFee
+      ? `Payment of $${Number(amount || 0).toFixed(2)} USD confirmed. Your loan application is now pending admin review.`
+      : `Payment of $${Number(amount || 0).toFixed(2)} USD successfully received.`,
+    badge: isFee ? 'Fee Confirmed · Under Review' : 'Payment Confirmed',
     badgeColor: '#059669',
     badgeBg: '#ecfdf5',
     content,
-    ctaText: 'View Payment History',
+    ctaText: isFee ? 'View Application in Dashboard' : 'View Payment History',
     ctaUrl: receiptUrl,
   });
 }

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../api/client';
 
-const FEE = 1;
+const FEE = 10;
 const MIN_AMOUNT = 500;
 const MAX_AMOUNT = 3000;
 
@@ -208,7 +208,7 @@ export default function ApplyLoan() {
       )}
       <div className="card" style={{ maxWidth: 760, margin: '0 auto', textAlign: 'center' }}>
         <h1 className="page-title">Apply for a Student Loan</h1>
-        <p className="page-sub">Three quick steps — a $1 application fee is charged at review time.</p>
+        <p className="page-sub">Three quick steps — a $10 application fee is charged at review time.</p>
 
         <div className="stepper">
           <div className={`step ${step >= 1 ? 'on' : ''}`}>1</div>
@@ -229,7 +229,7 @@ export default function ApplyLoan() {
             <div className="callout mb">
               <strong>Before you begin</strong>
               <p className="muted" style={{ margin: '4px 0 8px' }}>
-                Have your school and course details, income estimate, and a card for the $1 fee
+                Have your school and course details, income estimate, and a card for the $10 fee
                 ready.
               </p>
               <Link to="/learn/what-you-need" className="hint">See the full checklist →</Link>

@@ -123,7 +123,7 @@ async function sendLoanRejected({ email, name, loanAmount, university, course, r
 /**
  * 7. Send Payment Confirmation Receipt
  */
-async function sendPaymentReceipt({ email, name, purpose, amount, reference, date, receiptUrl }) {
+async function sendPaymentReceipt({ email, name, purpose, amount, reference, date, receiptUrl, loanAmount, university, course, durationMonths }) {
   const html = templates.paymentReceiptTemplate({
     name,
     purpose,
@@ -131,6 +131,10 @@ async function sendPaymentReceipt({ email, name, purpose, amount, reference, dat
     reference,
     date,
     receiptUrl,
+    loanAmount,
+    university,
+    course,
+    durationMonths,
   });
   const subject = purpose === 'application_fee'
     ? 'Payment Receipt: Application Fee Confirmed - USFunded'

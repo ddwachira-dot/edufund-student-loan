@@ -139,6 +139,22 @@ router.post('/webhook', async (req, res) => {
             }
           }
           await client.query('COMMIT');
+
+          // Async receipt email for webhook if user exists
+          if (loan && loan.email) {
+            emailService.sendPaymentReceipt({
+              email: loan.email,
+              name: loan.user_name || loan.applicant_name,
+              purpose,
+              amount: amountUsd,
+              reference,
+              date: new Date(),
+              loanAmount: loan.amount,
+              university: loan.university,
+              course: loan.course,
+              durationMonths: loan.duration_months,
+            }).catch((err) => console.error('[Paystack Webhook Receipt Error]:', err));
+          }
         } catch (err) {
           await client.query('ROLLBACK').catch(() => {});
           console.error('[Paystack Webhook] Processing error:', err);
@@ -349,6 +365,10 @@ router.post('/confirm', async (req, res, next) => {
             amount: APPLICATION_FEE,
             reference,
             date: new Date(),
+            loanAmount: rows[0]?.amount || loan.amount,
+            university: rows[0]?.university || loan.university,
+            course: rows[0]?.course || loan.course,
+            durationMonths: rows[0]?.duration_months || loan.duration_months,
           }).catch((err) => console.error('[Email Notification Error - Payment Receipt]:', err));
         }
 
