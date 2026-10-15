@@ -3,13 +3,14 @@ const BASE_URL = process.env.PAYSTACK_BASE_URL || 'https://api.paystack.co';
 const CURRENCY = process.env.PAYSTACK_CURRENCY || 'USD';
 
 function headers() {
-  if (!SECRET) {
-    const err = new Error('Paystack secret key is not configured');
-    err.status = 500;
+  const secret = process.env.PAYSTACK_SECRET_KEY;
+  if (!secret || secret.includes('dummy')) {
+    const err = new Error('Paystack API keys are not configured. Please set a valid PAYSTACK_SECRET_KEY in .env.');
+    err.status = 400;
     throw err;
   }
   return {
-    Authorization: `Bearer ${SECRET}`,
+    Authorization: `Bearer ${secret}`,
     'Content-Type': 'application/json',
   };
 }
@@ -37,8 +38,10 @@ async function initialize({ email, amount, reference, metadata, callback_url }) 
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok || !data.status) {
-    const err = new Error(data.message || 'Paystack initialization failed');
-    err.status = res.status || 502;
+    const msg = data.message ? `Paystack: ${data.message}` : 'Paystack initialization failed';
+    const err = new Error(msg);
+    // Never return 401 for third-party gateway errors, to avoid invalidating the user's session
+    err.status = 400;
     throw err;
   }
   return data.data; // { authorization_url, access_code, reference }
@@ -51,8 +54,9 @@ async function verify(reference) {
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok || !data.status) {
-    const err = new Error(data.message || 'Paystack verification failed');
-    err.status = res.status || 502;
+    const msg = data.message ? `Paystack: ${data.message}` : 'Paystack verification failed';
+    const err = new Error(msg);
+    err.status = 400;
     throw err;
   }
   return data.data; // { status, amount, currency, reference, ... }
