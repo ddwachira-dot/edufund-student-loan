@@ -182,12 +182,12 @@ export default function LoanDetail() {
             <div>
               <h3 style={{ margin: 0 }}>Application fee pending</h3>
               <p className="muted" style={{ margin: '4px 0 0' }}>
-                Pay the $10 application fee to submit this application for review. Your application
+                Pay the $1 application fee to submit this application for review. Your application
                 stays untouched until the fee is paid.
               </p>
             </div>
             <button className="btn success" onClick={() => navigate(`/checkout?application_id=${loan.id}&purpose=application_fee`)}>
-              Pay $10 fee
+              Pay $1 fee
             </button>
           </div>
         </div>

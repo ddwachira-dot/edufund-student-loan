@@ -170,7 +170,7 @@ export default function Checkout() {
             {isFee ? (
               <>
                 <p className="muted" style={{ margin: '0 0 8px' }}>
-                  Your application has been rejected because the $10 fee was not paid. No money was taken.
+                  Your application has been placed on hold because the fee was not paid. No money was taken.
                 </p>
                 <p className="hint" style={{ margin: '0 0 22px' }}>
                   Complete the payment now to restore your application.

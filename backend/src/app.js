@@ -39,10 +39,12 @@ app.use('/api/verify', verifyRoutes);     // auth enforced inside
 // Public: loan amount limits + the fixed 8.5% p.a. rate for every loan
 app.get('/api/rates', (req, res) => {
   const { INTEREST_RATE, MIN_LOAN_AMOUNT, MAX_LOAN_AMOUNT } = require('./config/loan');
+  const { APPLICATION_FEE } = require('./config/fees');
   return res.json({
     rate: { id: null, label: 'Standard Fixed Rate', rate: INTEREST_RATE },
     min_amount: MIN_LOAN_AMOUNT,
     max_amount: MAX_LOAN_AMOUNT,
+    application_fee: APPLICATION_FEE,
   });
 });
 

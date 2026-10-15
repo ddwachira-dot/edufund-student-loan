@@ -1,6 +1,7 @@
 const pool = require('../config/db');
 const { buildSchedule } = require('../utils/emi');
 const { INTEREST_RATE } = require('../config/loan');
+const { APPLICATION_FEE } = require('../config/fees');
 
 class LoanActionError extends Error {
   constructor(message, status = 400) {
@@ -16,7 +17,7 @@ async function approveApplication(client, loan, adminId, note) {
     throw new LoanActionError(`Cannot approve an application with status '${loan.status}'`);
   }
   if (!loan.application_fee_paid) {
-    throw new LoanActionError('The $10 application fee must be paid before an application can be approved');
+    throw new LoanActionError(`The $${APPLICATION_FEE} application fee must be paid before an application can be approved`);
   }
 
   const { emi, rows } = buildSchedule(

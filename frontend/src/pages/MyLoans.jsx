@@ -52,7 +52,7 @@ export default function MyLoans() {
                       {remaining > 0 ? `${remaining} remaining` : 'all cleared'}
                     </>
                   )}
-                  {l.status === 'pending' && (l.can_pay_fee ? 'Awaiting $10 application fee' : 'Awaiting admin review')}
+                  {l.status === 'pending' && (l.can_pay_fee ? 'Awaiting $1 application fee' : 'Awaiting admin review')}
                   {l.status === 'rejected' && (l.can_pay_fee ? 'Fee unpaid — pay to submit for review' : 'Application was declined')}
                   {l.status === 'approved' && `Approved at ${l.interest_rate ?? '—'}%`}
                   {l.status === 'closed' && 'Fully repaid'}
@@ -64,7 +64,7 @@ export default function MyLoans() {
                   className="btn success"
                   style={{ marginTop: 12, textAlign: 'center' }}
                 >
-                  Pay $10 application fee
+                  Pay $1 application fee
                 </Link>
               )}
             </div>
