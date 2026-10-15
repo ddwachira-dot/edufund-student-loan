@@ -24,13 +24,13 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   const login = async (email, password) => {
-    const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
-    setFirebaseUser(cred.user);
-    const token = await cred.user.getIdToken();
-    localStorage.setItem('sl_token', token);
-
-    // Sync profile and permissions with backend
     try {
+      const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
+      setFirebaseUser(cred.user);
+      const token = await cred.user.getIdToken();
+      localStorage.setItem('sl_token', token);
+
+      // Sync profile and permissions with backend
       const { data } = await api.post(
         '/auth/firebase-login',
         {},
@@ -40,12 +40,24 @@ export function AuthProvider({ children }) {
       localStorage.setItem('sl_user', JSON.stringify(data.user));
       setUser(data.user);
       return data.user;
-    } catch (err) {
-      await signOut(auth);
-      setFirebaseUser(null);
-      localStorage.removeItem('sl_token');
-      localStorage.removeItem('sl_user');
-      throw err;
+    } catch (fbErr) {
+      // Fallback: If Firebase sign-in fails, authenticate directly with backend (for PostgreSQL admin accounts)
+      try {
+        const { data } = await api.post('/auth/login', {
+          email: email.trim(),
+          password,
+        });
+        localStorage.setItem('sl_token', data.token);
+        localStorage.setItem('sl_user', JSON.stringify(data.user));
+        setUser(data.user);
+        return data.user;
+      } catch (backendErr) {
+        await signOut(auth).catch(() => {});
+        setFirebaseUser(null);
+        localStorage.removeItem('sl_token');
+        localStorage.removeItem('sl_user');
+        throw (backendErr.response?.data?.message ? new Error(backendErr.response.data.message) : fbErr);
+      }
     }
   };
 
