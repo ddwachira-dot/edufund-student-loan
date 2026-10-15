@@ -9,8 +9,6 @@ const { APPLICATION_FEE, FEE_CANCEL_NOTE, canPayFee } = require('../config/fees'
 const router = express.Router();
 const CURRENCY = process.env.PAYSTACK_CURRENCY || 'USD';
 
-router.use(authenticate);
-
 function isOwner(loan, userId) {
   return String(loan.user_id) === String(userId);
 }
@@ -83,6 +81,81 @@ async function applyEmiPayment(client, loan, userId, amount, paystackReference) 
   };
 }
 
+// POST /api/payments/webhook -> Unauthenticated Paystack Webhook
+router.post('/webhook', async (req, res) => {
+  try {
+    const secret = process.env.PAYSTACK_SECRET_KEY;
+    if (!secret) {
+      return res.status(500).send('Paystack secret key is not configured');
+    }
+
+    const signature = req.headers['x-paystack-signature'];
+    if (!signature) {
+      return res.status(400).send('Missing signature');
+    }
+
+    // Verify HMAC-SHA512
+    const bodyBuf = req.rawBody || Buffer.from(JSON.stringify(req.body));
+    const hash = crypto.createHmac('sha512', secret).update(bodyBuf).digest('hex');
+    if (hash !== signature) {
+      return res.status(400).send('Invalid signature');
+    }
+
+    const { event, data } = req.body || {};
+    if (event === 'charge.success' && data && data.status === 'success') {
+      const reference = data.reference;
+      const amountUsd = Number(data.amount) / 100;
+      const metadata = data.metadata || {};
+      const applicationId = metadata.application_id;
+      const purpose = metadata.purpose;
+
+      if (applicationId && (purpose === 'application_fee' || purpose === 'emi')) {
+        const client = await pool.connect();
+        try {
+          await client.query('BEGIN');
+          if (!(await alreadyRecorded(client, reference))) {
+            const loan = await getLoan(applicationId);
+            if (loan) {
+              if (purpose === 'application_fee') {
+                await client.query(
+                  `UPDATE loan_applications
+                      SET application_fee_paid = TRUE,
+                          status = CASE WHEN status = 'rejected' AND decision_note = $2 THEN 'pending' ELSE status END,
+                          decision_note = CASE WHEN status = 'rejected' AND decision_note = $2 THEN NULL ELSE decision_note END
+                    WHERE id = $1`,
+                  [loan.id, FEE_CANCEL_NOTE]
+                );
+                await client.query(
+                  `INSERT INTO payments (user_id, application_id, payment_type, amount, method, reference, status)
+                   VALUES ($1,$2,'application_fee',$3,'paystack',$4,'succeeded')`,
+                  [loan.user_id, loan.id, amountUsd, reference]
+                );
+              } else if (purpose === 'emi') {
+                if (['approved', 'active'].includes(loan.status)) {
+                  await applyEmiPayment(client, loan, loan.user_id, amountUsd, reference);
+                }
+              }
+            }
+          }
+          await client.query('COMMIT');
+        } catch (err) {
+          await client.query('ROLLBACK').catch(() => {});
+          console.error('[Paystack Webhook] Processing error:', err);
+        } finally {
+          client.release();
+        }
+      }
+    }
+
+    return res.status(200).send('Webhook processed');
+  } catch (err) {
+    console.error('[Paystack Webhook] Internal error:', err);
+    return res.status(500).send('Internal Server Error');
+  }
+});
+
+router.use(authenticate);
+
 // GET /api/payments  -> caller's payment history
 router.get('/', async (req, res, next) => {
   try {
@@ -136,7 +209,7 @@ router.post('/initialize', async (req, res, next) => {
       amountUsd = emiAmount;
     } else if (purpose === 'application_fee') {
       if (!canPayFee(loan)) {
-        return res.status(400).json({ message: 'The $10 application fee is not payable for this application' });
+        return res.status(400).json({ message: `The $${APPLICATION_FEE} application fee is not payable for this application` });
       }
       amountUsd = APPLICATION_FEE;
     } else {

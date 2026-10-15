@@ -16,7 +16,14 @@ const { authenticate } = require('./middleware/auth');
 const app = express();
 
 app.use(cors());
-app.use(express.json({ limit: '2mb' }));
+app.use(
+  express.json({
+    limit: '2mb',
+    verify: (req, res, buf) => {
+      req.rawBody = buf;
+    },
+  })
+);
 app.use(express.urlencoded({ extended: true }));
 
 // Uploads are NEVER served as a static directory — every read goes through an
