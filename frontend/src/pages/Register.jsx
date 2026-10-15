@@ -43,9 +43,18 @@ export default function Register() {
     setBusy(true);
     try {
       await register({ ...form, accepted_terms: acceptedTerms });
-      navigate('/verify');
+      navigate('/dashboard');
     } catch (err) {
-      setError(err.response?.data?.message || 'Registration failed');
+      const code = err.code || '';
+      if (code === 'auth/email-already-in-use') {
+        setError('An account with this email address already exists. Please sign in instead.');
+      } else if (code === 'auth/weak-password') {
+        setError('Password is too weak. Please choose a stronger password.');
+      } else if (code === 'auth/invalid-email') {
+        setError('Please enter a valid email address.');
+      } else {
+        setError(err.response?.data?.message || err.message || 'Registration failed');
+      }
     } finally {
       setBusy(false);
     }

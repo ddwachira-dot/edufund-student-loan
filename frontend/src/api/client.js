@@ -1,10 +1,23 @@
 import axios from 'axios';
+import { auth } from '../config/firebase';
 
 const api = axios.create({
   baseURL: '/api',
 });
 
-api.interceptors.request.use((config) => {
+api.interceptors.request.use(async (config) => {
+  try {
+    if (auth.currentUser) {
+      const token = await auth.currentUser.getIdToken();
+      if (token) {
+        localStorage.setItem('sl_token', token);
+        config.headers.Authorization = `Bearer ${token}`;
+        return config;
+      }
+    }
+  } catch (_) {
+    // fallback to cached token
+  }
   const token = localStorage.getItem('sl_token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;

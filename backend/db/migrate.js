@@ -25,6 +25,9 @@ const STEPS = [
   // One payment per Paystack reference: first de-duplicate, then enforce uniqueness.
   `DELETE FROM payments p USING payments p2 WHERE p.id > p2.id AND p.reference = p2.reference`,
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_reference ON payments(reference)`,
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS firebase_uid VARCHAR(128)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_firebase_uid ON users(firebase_uid)`,
+  `ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL`,
 ];
 
 async function migrate() {

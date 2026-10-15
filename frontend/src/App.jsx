@@ -76,9 +76,7 @@ export default function App() {
             path="/dashboard"
             element={
               <ProtectedRoute>
-                <WelcomeGate>
-                  <DashboardHome />
-                </WelcomeGate>
+                <DashboardHome />
               </ProtectedRoute>
             }
           />

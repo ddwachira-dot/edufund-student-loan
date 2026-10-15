@@ -7,7 +7,8 @@
 CREATE TABLE users (
   id            SERIAL PRIMARY KEY,
   email         VARCHAR(255) UNIQUE NOT NULL,
-  password_hash TEXT NOT NULL,
+  firebase_uid  VARCHAR(128) UNIQUE,
+  password_hash TEXT,
   name          VARCHAR(120) NOT NULL,
   role          VARCHAR(20) NOT NULL DEFAULT 'student'
                 CHECK (role IN ('student', 'admin')),

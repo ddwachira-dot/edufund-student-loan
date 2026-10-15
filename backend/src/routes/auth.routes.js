@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const fs = require('fs');
 const path = require('path');
 const pool = require('../config/db');
+const { auth } = require('../config/firebase');
 const { authenticate, signToken } = require('../middleware/auth');
 const { uploadImage, UPLOAD_DIR } = require('../middleware/upload');
 
@@ -21,7 +22,7 @@ function isUsPhone(value) {
   return digits.length === 10 && /^[2-9]\d{2}[2-9]\d{2}\d{4}$/.test(digits);
 }
 
-const USER_FIELDS = 'id, email, name, role, phone, address, profile_pic, accepted_terms_at, welcome_seen_at, created_at';
+const USER_FIELDS = 'id, email, firebase_uid, name, role, phone, address, profile_pic, accepted_terms_at, welcome_seen_at, created_at';
 
 // Returns the active ban row for an email, or null.
 async function findActiveBan(email) {
@@ -32,7 +33,169 @@ async function findActiveBan(email) {
   return rows[0] || null;
 }
 
-// POST /api/auth/register  -> creates a student account
+// POST /api/auth/firebase-register -> sync/create student profile from Firebase Auth
+router.post('/firebase-register', async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization || '';
+    const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    if (!idToken) {
+      return res.status(401).json({ message: 'Firebase authentication token is required' });
+    }
+
+    let decoded;
+    try {
+      decoded = await auth.verifyIdToken(idToken);
+    } catch (err) {
+      return res.status(401).json({ message: 'Invalid Firebase authentication token' });
+    }
+
+    const { name, phone, address, accepted_terms } = req.body || {};
+    const email = (decoded.email || req.body?.email || '').toLowerCase();
+    const displayName = (name || decoded.name || email.split('@')[0] || '').trim();
+
+    if (!displayName) {
+      return res.status(400).json({ message: 'Full name is required' });
+    }
+    if (accepted_terms !== true) {
+      return res.status(400).json({ message: 'You must accept the Terms & Conditions to register' });
+    }
+    if (!email) {
+      return res.status(400).json({ message: 'Email address is required from Firebase account' });
+    }
+    if (phone && !isUsPhone(phone)) {
+      return res.status(400).json({ message: 'A valid US phone number is required' });
+    }
+    if (await findActiveBan(email)) {
+      return res.status(403).json({ message: 'This email address has been blocked from registering' });
+    }
+
+    // Check if user exists by firebase_uid or email
+    const { rows: existingRows } = await pool.query(
+      'SELECT id, role, firebase_uid, closed_at, closed_reason FROM users WHERE firebase_uid = $1 OR email = $2 LIMIT 1',
+      [decoded.uid, email]
+    );
+
+    let userId;
+    if (existingRows.length > 0) {
+      const existing = existingRows[0];
+      if (existing.closed_at) {
+        return res.status(403).json({ message: `This account has been closed. Reason: ${existing.closed_reason || 'no reason recorded'}` });
+      }
+      await pool.query(
+        `UPDATE users
+            SET firebase_uid = $1,
+                name = COALESCE($2, name),
+                phone = COALESCE($3, phone),
+                address = COALESCE($4, address),
+                accepted_terms_at = COALESCE(accepted_terms_at, NOW())
+          WHERE id = $5`,
+        [decoded.uid, displayName, phone || null, address || null, existing.id]
+      );
+      userId = existing.id;
+    } else {
+      const { rows: inserted } = await pool.query(
+        `INSERT INTO users (email, firebase_uid, name, role, phone, address, accepted_terms_at)
+         VALUES ($1, $2, $3, 'student', $4, $5, NOW())
+         RETURNING id`,
+        [email, decoded.uid, displayName, phone || null, address || null]
+      );
+      userId = inserted[0].id;
+    }
+
+    const { rows: full } = await pool.query(
+      `SELECT ${USER_FIELDS} FROM users WHERE id = $1`, [userId]
+    );
+    return res.status(201).json({ token: idToken, user: full[0] });
+  } catch (err) {
+    if (err.code === '23505') {
+      return res.status(409).json({ message: 'An account with this email already exists' });
+    }
+    return next(err);
+  }
+});
+
+// POST /api/auth/firebase-login -> sync profile & verify account after Firebase sign-in
+router.post('/firebase-login', async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization || '';
+    const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    if (!idToken) {
+      return res.status(401).json({ message: 'Firebase authentication token is required' });
+    }
+
+    let decoded;
+    try {
+      decoded = await auth.verifyIdToken(idToken);
+    } catch (err) {
+      return res.status(401).json({ message: 'Invalid or expired Firebase token' });
+    }
+
+    const email = (decoded.email || '').toLowerCase();
+    if (!email) {
+      return res.status(400).json({ message: 'Firebase account has no verified email address' });
+    }
+
+    const ban = await findActiveBan(email);
+    if (ban) {
+      return res.status(403).json({
+        message: `This account has been closed. Reason: ${ban.reason || 'no reason recorded'}`,
+      });
+    }
+
+    let { rows } = await pool.query(
+      `SELECT ${USER_FIELDS}, closed_at, closed_reason
+         FROM users
+        WHERE firebase_uid = $1 OR email = $2
+        ORDER BY (firebase_uid = $1) DESC
+        LIMIT 1`,
+      [decoded.uid, email]
+    );
+
+    let user = rows[0];
+
+    // If user doesn't exist in Postgres yet (e.g. direct Firebase sign-in), create default student record
+    if (!user) {
+      const displayName = (decoded.name || email.split('@')[0] || 'Student').trim();
+      const { rows: created } = await pool.query(
+        `INSERT INTO users (email, firebase_uid, name, role, accepted_terms_at)
+         VALUES ($1, $2, $3, 'student', NOW())
+         RETURNING ${USER_FIELDS}`,
+        [email, decoded.uid, displayName]
+      );
+      user = created[0];
+    } else {
+      if (user.closed_at) {
+        return res.status(403).json({
+          message: `This account has been closed. Reason: ${user.closed_reason || 'no reason recorded'}`,
+        });
+      }
+      if (!user.firebase_uid) {
+        await pool.query('UPDATE users SET firebase_uid = $1 WHERE id = $2', [decoded.uid, user.id]);
+        user.firebase_uid = decoded.uid;
+      }
+    }
+
+    const safe = {
+      id: user.id,
+      email: user.email,
+      firebase_uid: user.firebase_uid,
+      name: user.name,
+      role: user.role,
+      phone: user.phone,
+      address: user.address,
+      profile_pic: user.profile_pic,
+      accepted_terms_at: user.accepted_terms_at,
+      welcome_seen_at: user.welcome_seen_at,
+      created_at: user.created_at,
+    };
+
+    return res.json({ token: idToken, user: safe });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+// POST /api/auth/register  -> legacy student registration
 router.post('/register', async (req, res, next) => {
   try {
     const { name, email, password, phone, address, accepted_terms } = req.body || {};
@@ -76,7 +239,7 @@ router.post('/register', async (req, res, next) => {
   }
 });
 
-// POST /api/auth/login
+// POST /api/auth/login -> legacy login
 router.post('/login', async (req, res, next) => {
   try {
     const { email, password } = req.body || {};
@@ -87,11 +250,9 @@ router.post('/login', async (req, res, next) => {
       email.toLowerCase(),
     ]);
     const user = rows[0];
-    if (!user || !(await bcrypt.compare(String(password), user.password_hash))) {
+    if (!user || !user.password_hash || !(await bcrypt.compare(String(password), user.password_hash))) {
       return res.status(401).json({ message: 'Invalid email or password' });
     }
-    // Checked only after the password matches, so a wrong-password attempt cannot be
-    // used to discover which emails are banned.
     const ban = await findActiveBan(email);
     if (ban) {
       return res.status(403).json({
@@ -104,7 +265,7 @@ router.post('/login', async (req, res, next) => {
       });
     }
     const safe = {
-      id: user.id, email: user.email, name: user.name, role: user.role,
+      id: user.id, email: user.email, firebase_uid: user.firebase_uid, name: user.name, role: user.role,
       phone: user.phone, address: user.address, profile_pic: user.profile_pic,
       accepted_terms_at: user.accepted_terms_at, welcome_seen_at: user.welcome_seen_at,
       created_at: user.created_at,
@@ -139,7 +300,7 @@ router.post('/profile-picture', authenticate, uploadImage.single('file'), async 
       .rows[0];
     const { rows } = await pool.query(
       `UPDATE users SET profile_pic = $2 WHERE id = $1
-       RETURNING ${USER_FIELDS.replace(/profile_pic/, 'profile_pic')}`,
+       RETURNING ${USER_FIELDS}`,
       [req.user.id, req.file.filename]
     );
     if (current?.profile_pic) {
